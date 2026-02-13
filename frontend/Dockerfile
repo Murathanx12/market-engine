@@ -1,18 +1,16 @@
-FROM node:20-alpine
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN npm ci --legacy-peer-deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code
 COPY . .
 
-# Expose port
-EXPOSE 3000
-
-# Start development server
-CMD ["npm", "start"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -1,39 +1,42 @@
+"""
+V6 Scheduler - runs daily data updates.
+Fetches macro data, news, detects regime, runs predictions.
+"""
+
 import schedule
 import time
-from data_fetchers import run_daily_update
-from models import CrashPredictor
 import logging
+from data_fetchers import run_daily_update
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+)
 logger = logging.getLogger(__name__)
 
-def daily_job():
-    """Run daily at 6 AM"""
-    logger.info("Starting daily update job...")
+
+def job():
+    logger.info("⏰ Scheduled job starting...")
     try:
-        # Fetch new data
         run_daily_update()
-        
-        # Retrain crash model weekly (on Sundays)
-        import datetime
-        if datetime.datetime.now().weekday() == 6:  # Sunday
-            logger.info("Sunday - Retraining crash model...")
-            predictor = CrashPredictor()
-            predictor.train('SPY')
-        
-        logger.info("Daily update complete!")
     except Exception as e:
-        logger.error(f"Daily update failed: {e}")
+        logger.error(f"Scheduled job failed: {e}")
 
-# Schedule the job
-schedule.every().day.at("06:00").do(daily_job)
 
-logger.info("Scheduler started. Running daily at 6:00 AM...")
+if __name__ == "__main__":
+    logger.info("🕐 Market Prediction Engine V6 Scheduler Started")
+    logger.info("   Running initial update...")
 
-# Run immediately on start
-daily_job()
+    # Run immediately on startup
+    job()
 
-# Keep running
-while True:
-    schedule.run_pending()
-    time.sleep(60)  # Check every minute
+    # Schedule daily at 6:30 AM UTC (before US market open)
+    schedule.every().day.at("06:30").do(job)
+    # Also run at market close
+    schedule.every().day.at("21:00").do(job)
+
+    logger.info("   Scheduled: 06:30 UTC and 21:00 UTC daily")
+
+    while True:
+        schedule.run_pending()
+        time.sleep(60)

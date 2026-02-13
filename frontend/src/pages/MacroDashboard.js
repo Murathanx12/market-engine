@@ -1,162 +1,153 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Box,
-  Card,
-  CardContent,
-  Typography,
-  Grid as Grid,
-  CircularProgress,
-  Alert,
-  Chip,
+  Box, Card, Typography, Grid, CircularProgress, Alert, Chip,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
   TrendingFlat as TrendingFlatIcon,
 } from '@mui/icons-material';
-import { getMacroIndicators } from '../services/api';
+import { getMacroIndicators, getMarketRegime, getSectorRotation } from '../services/api';
 
-const colors = {
-  good: '#4caf50',
-  bad: '#ef5350',
-  info: '#64b5f6',
-  warning: '#ffa726',
-  muted: '#888888',
+const colors = { good: '#4caf50', bad: '#ef5350', info: '#64b5f6', warning: '#ffa726', muted: '#888', accent: '#fff' };
+
+const statusColors = {
+  normal: { bg: 'rgba(76,175,80,0.12)', color: colors.good },
+  caution: { bg: 'rgba(255,167,38,0.12)', color: colors.warning },
+  elevated: { bg: 'rgba(239,83,80,0.12)', color: colors.bad },
+};
+
+const trendIcon = (trend) => {
+  if (trend === 'rising') return <TrendingUpIcon sx={{ fontSize: 18, color: colors.bad }} />;
+  if (trend === 'falling') return <TrendingDownIcon sx={{ fontSize: 18, color: colors.good }} />;
+  return <TrendingFlatIcon sx={{ fontSize: 18, color: colors.muted }} />;
+};
+
+const INDICATOR_LABELS = {
+  VIX: { name: 'VIX (Fear Index)', unit: '', desc: 'Market volatility gauge' },
+  CPI: { name: 'CPI (Inflation)', unit: '%', desc: 'Consumer Price Index' },
+  Unemployment: { name: 'Unemployment Rate', unit: '%', desc: 'U.S. unemployment' },
+  Fed_Rate: { name: 'Fed Funds Rate', unit: '%', desc: 'Federal Reserve target rate' },
+  Yield_Curve: { name: 'Yield Curve (10Y-2Y)', unit: '%', desc: 'Treasury spread' },
+  Treasury_10Y: { name: '10Y Treasury Yield', unit: '%', desc: '10-Year bond yield' },
+  Treasury_2Y: { name: '2Y Treasury Yield', unit: '%', desc: '2-Year bond yield' },
 };
 
 const MacroDashboard = () => {
-  const { data, isLoading, error } = useQuery({
+  const { data: indicators, isLoading, error } = useQuery({
     queryKey: ['macro'],
     queryFn: getMacroIndicators,
-    refetchInterval: 300000,
+    staleTime: 300000,
   });
 
-  if (isLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress size={48} sx={{ color: '#ffffff' }} />
-      </Box>
-    );
-  }
+  const { data: regime } = useQuery({
+    queryKey: ['regime'],
+    queryFn: getMarketRegime,
+    staleTime: 300000,
+  });
 
-  if (error) {
-    return <Alert severity="error">Error loading macro data: {error?.message || 'Unknown error'}</Alert>;
-  }
+  const { data: rotation } = useQuery({
+    queryKey: ['sector-rotation'],
+    queryFn: getSectorRotation,
+    staleTime: 300000,
+  });
 
-  const getTrendIcon = (trend) => {
-    if (trend === 'rising') return <TrendingUpIcon sx={{ color: colors.bad }} />;
-    if (trend === 'falling') return <TrendingDownIcon sx={{ color: colors.good }} />;
-    return <TrendingFlatIcon sx={{ color: colors.muted }} />;
-  };
+  if (isLoading) return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress sx={{ color: '#fff' }} /></Box>;
+  if (error) return <Alert severity="error">Error: {error?.message}</Alert>;
 
-  const getIndicatorStatus = (indicator, value) => {
-    const val = value ?? 0;
-    if (indicator === 'VIX') {
-      if (val > 30) return { label: 'Elevated Risk', color: colors.bad };
-      if (val > 20) return { label: 'Caution', color: colors.warning };
-      return { label: 'Normal', color: colors.good };
-    }
-    if (indicator === 'CPI') {
-      if (val > 4) return { label: 'High Inflation', color: colors.bad };
-      if (val > 3) return { label: 'Above Target', color: colors.warning };
-      return { label: 'On Target', color: colors.good };
-    }
-    if (indicator === 'Unemployment') {
-      if (val > 6) return { label: 'High', color: colors.bad };
-      if (val > 4.5) return { label: 'Elevated', color: colors.warning };
-      return { label: 'Healthy', color: colors.good };
-    }
-    if (indicator === 'Yield_Curve') {
-      if (val < -0.5) return { label: 'Inverted — Recession Signal', color: colors.bad };
-      if (val < 0) return { label: 'Inverted', color: colors.warning };
-      return { label: 'Normal', color: colors.good };
-    }
-    return { label: 'Stable', color: colors.info };
-  };
-
-  const getIndicatorDescription = (indicator) => {
-    const map = {
-      'VIX': 'Market volatility and fear index',
-      'CPI': 'Consumer Price Index — inflation measure',
-      'Unemployment': 'Unemployment rate',
-      'Fed_Rate': 'Federal Funds Rate',
-      'Yield_Curve': '10Y-2Y Treasury spread (recession indicator)',
-    };
-    return map[indicator] || indicator;
-  };
+  const data = Array.isArray(indicators) ? indicators : [];
 
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
-          Macro Dashboard
-        </Typography>
-        <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>
-          Real-time economic indicators that drive market movements
-        </Typography>
+        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Macro Dashboard</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>Key economic indicators and market regime</Typography>
       </Box>
 
       <Grid container spacing={3}>
-        {(data ?? []).map((indicator, idx) => {
-          const status = getIndicatorStatus(indicator?.indicator, indicator?.current_value);
-          const change = indicator?.change_1m;
+        {/* Regime Card */}
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Card sx={{ p: 3, height: '100%' }}>
+            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Market Regime</Typography>
+            <Typography sx={{ fontSize: '2.2rem', fontWeight: 700, color: regime?.regime === 'bull' ? colors.good : regime?.regime === 'bear' ? colors.bad : colors.warning, lineHeight: 1.2 }}>
+              {(regime?.regime || 'unknown').charAt(0).toUpperCase() + (regime?.regime || 'unknown').slice(1)}
+            </Typography>
+            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mt: 0.5 }}>
+              Confidence: {((regime?.confidence || 0) * 100).toFixed(0)}%
+            </Typography>
+          </Card>
+        </Grid>
+
+        {/* Sector Rotation */}
+        {rotation && (
+          <Grid size={{ xs: 12, md: 8 }}>
+            <Card sx={{ p: 3, height: '100%' }}>
+              <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 2 }}>Sector Rotation Strategy</Typography>
+              <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                <Box>
+                  <Typography sx={{ fontSize: '0.75rem', color: colors.good, textTransform: 'uppercase', fontWeight: 600, mb: 1 }}>Overweight</Typography>
+                  {(rotation.sectors_to_buy || []).map((s, i) => (
+                    <Chip key={i} label={s} size="small" sx={{ mr: 0.5, mb: 0.5, bgcolor: 'rgba(76,175,80,0.1)', color: colors.good, fontSize: '0.75rem' }} />
+                  ))}
+                </Box>
+                <Box>
+                  <Typography sx={{ fontSize: '0.75rem', color: colors.bad, textTransform: 'uppercase', fontWeight: 600, mb: 1 }}>Underweight</Typography>
+                  {(rotation.sectors_to_sell || []).map((s, i) => (
+                    <Chip key={i} label={s} size="small" sx={{ mr: 0.5, mb: 0.5, bgcolor: 'rgba(239,83,80,0.1)', color: colors.bad, fontSize: '0.75rem' }} />
+                  ))}
+                </Box>
+              </Box>
+              <Typography sx={{ color: 'text.secondary', fontSize: '0.82rem', mt: 2 }}>{rotation.reasoning}</Typography>
+            </Card>
+          </Grid>
+        )}
+
+        {/* Indicator Cards */}
+        {data.map((ind, idx) => {
+          const meta = INDICATOR_LABELS[ind.indicator] || { name: ind.indicator, unit: '', desc: '' };
+          const status = statusColors[ind.status] || statusColors.normal;
 
           return (
-            <Grid size={{ xs: 12, md: 6 }} key={indicator?.indicator ?? idx}>
-              <Card>
-                <CardContent>
-                  <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                    <Box>
-                      <Typography sx={{ fontWeight: 600, fontSize: '1.05rem', mb: 0.3 }}>
-                        {(indicator?.indicator ?? '').replace('_', ' ')}
-                      </Typography>
-                      <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', mb: 2 }}>
-                        {getIndicatorDescription(indicator?.indicator)}
-                      </Typography>
-                    </Box>
-                    {getTrendIcon(indicator?.trend)}
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={ind.indicator || idx}>
+              <Card sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
+                  <Box>
+                    <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', fontWeight: 500 }}>{meta.name}</Typography>
+                    <Typography sx={{ fontSize: '0.72rem', color: '#555' }}>{meta.desc}</Typography>
                   </Box>
-
-                  <Box display="flex" alignItems="baseline" gap={2} mb={2}>
-                    <Typography sx={{ fontSize: '2.4rem', fontWeight: 700, color: '#e8e8e8' }}>
-                      {(indicator?.current_value ?? 0).toFixed(2)}
-                    </Typography>
-                    {change != null && (
-                      <Chip
-                        label={`${change >= 0 ? '+' : ''}${change.toFixed(2)} (1M)`}
-                        size="small"
-                        sx={{
-                          bgcolor: change > 0 ? 'rgba(239,83,80,0.1)' : change < 0 ? 'rgba(76,175,80,0.1)' : 'rgba(255,255,255,0.05)',
-                          color: change > 0 ? colors.bad : change < 0 ? colors.good : colors.muted,
-                          fontWeight: 600,
-                        }}
-                      />
-                    )}
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <Chip
+                      label={ind.status?.toUpperCase() || 'NORMAL'}
+                      size="small"
+                      sx={{ height: 22, fontSize: '0.68rem', fontWeight: 600, bgcolor: status.bg, color: status.color }}
+                    />
                   </Box>
-
-                  <Box
-                    sx={{
-                      px: 2, py: 1, borderRadius: 1,
-                      bgcolor: `${status.color}10`,
-                      border: `1px solid ${status.color}25`,
-                    }}
-                  >
-                    <Typography sx={{ fontSize: '0.82rem', color: status.color, fontWeight: 500 }}>
-                      {status.label}
-                    </Typography>
-                  </Box>
-                </CardContent>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+                  <Typography sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>
+                    {ind.current_value != null ? ind.current_value : '—'}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.9rem', color: '#666' }}>{meta.unit}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                  {trendIcon(ind.trend)}
+                  <Typography sx={{ fontSize: '0.82rem', color: ind.change_1m != null ? (ind.change_1m > 0 ? colors.bad : colors.good) : colors.muted }}>
+                    {ind.change_1m != null ? `${ind.change_1m > 0 ? '+' : ''}${ind.change_1m.toFixed(2)} (1M)` : 'No change data'}
+                  </Typography>
+                </Box>
               </Card>
             </Grid>
           );
         })}
 
-        {(!data || data.length === 0) && (
+        {data.length === 0 && (
           <Grid size={{ xs: 12 }}>
-            <Alert severity="info" sx={{ bgcolor: 'rgba(100,181,246,0.08)', color: colors.info }}>
-              No macro data available. The scheduler will fetch data automatically.
-            </Alert>
+            <Card sx={{ p: 4, textAlign: 'center' }}>
+              <Typography sx={{ color: 'text.secondary' }}>
+                No macro data available. The scheduler will populate indicators shortly.
+              </Typography>
+            </Card>
           </Grid>
         )}
       </Grid>
