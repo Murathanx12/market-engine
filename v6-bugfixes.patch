@@ -1,0 +1,256 @@
+diff --git a/backend/database.py b/backend/database.py
+index 41e7bf7..686e689 100644
+--- a/backend/database.py
++++ b/backend/database.py
+@@ -7,9 +7,14 @@ from dotenv import load_dotenv
+ 
+ load_dotenv()
+ 
+-DATABASE_URL = os.getenv("DATABASE_URL")
++DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./market_engine.db")
+ 
+-engine = create_engine(DATABASE_URL)
++# SQLite needs connect_args for thread safety
++connect_args = {}
++if DATABASE_URL.startswith("sqlite"):
++    connect_args = {"check_same_thread": False}
++
++engine = create_engine(DATABASE_URL, connect_args=connect_args)
+ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+ Base = declarative_base()
+ 
+diff --git a/backend/engine.py b/backend/engine.py
+index 9761d8f..5f6e6e7 100644
+--- a/backend/engine.py
++++ b/backend/engine.py
+@@ -20,7 +20,13 @@ Key capabilities:
+ 
+ import numpy as np
+ import pandas as pd
+-from scipy import stats
++try:
++    from scipy import stats as scipy_stats
++    HAS_SCIPY = True
++except ImportError:
++    HAS_SCIPY = False
++    scipy_stats = None
++    logging.warning("scipy not available - using numpy fallback for Student-t distribution")
+ from datetime import datetime, timedelta
+ from typing import Dict, List, Optional, Tuple
+ import logging
+@@ -142,9 +148,16 @@ def simulate_paths_jump_diffusion(
+ 
+     # Pre-generate Student-t shocks (fat tails)
+     df_param = CONFIG['t_df']
+-    t_shocks = stats.t.rvs(df=df_param, size=(days, n_sims))
+-    # Normalize so variance = 1
+-    t_shocks = t_shocks / np.sqrt(df_param / (df_param - 2))
++    if HAS_SCIPY:
++        t_shocks = scipy_stats.t.rvs(df=df_param, size=(days, n_sims))
++        # Normalize so variance = 1
++        t_shocks = t_shocks / np.sqrt(df_param / (df_param - 2))
++    else:
++        # Fallback: use normal distribution with slightly heavier tails approximation
++        t_shocks = np.random.standard_normal((days, n_sims))
++        # Approximate fat tails by mixing with uniform noise
++        tail_mask = np.random.random((days, n_sims)) < 0.05
++        t_shocks[tail_mask] *= 2.5
+ 
+     paths = np.zeros((days + 1, n_sims))
+     paths[0] = start_price
+diff --git a/backend/main.py b/backend/main.py
+index 82f90d6..a01979c 100644
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -564,7 +564,10 @@ async def get_crash_prediction(ticker: str, db: Session = Depends(get_db)):
+             "explanation": explanation,
+             "top_factors": factors,
+             "prediction_date": datetime.now().isoformat(),
+-            "scenarios": result['scenarios'],
++            "scenarios": [
++                {"name": name, **details}
++                for name, details in result['scenarios'].items()
++            ],
+             "crash_probabilities": result['crash_probabilities'],
+             "risk_metrics": result['risk_metrics'],
+             "cached": False,
+diff --git a/docker-compose.yml b/docker-compose.yml
+index cb7a4dd..00d119b 100644
+--- a/docker-compose.yml
++++ b/docker-compose.yml
+@@ -2,7 +2,7 @@ version: '3.8'
+ 
+ services:
+   postgres:
+-    image: postgres:18
++    image: postgres:17
+     container_name: market_db
+     environment:
+       POSTGRES_USER: postgres
+@@ -11,7 +11,7 @@ services:
+     ports:
+       - "5432:5432"
+     volumes:
+-      - postgres_data:/var/lib/postgresql
++      - postgres_data:/var/lib/postgresql/data
+     healthcheck:
+       test: ["CMD-SHELL", "pg_isready -U postgres"]
+       interval: 5s
+diff --git a/frontend/Dockerfile b/frontend/Dockerfile
+index e95438c..e6cdd88 100644
+--- a/frontend/Dockerfile
++++ b/frontend/Dockerfile
+@@ -1,16 +1,14 @@
+-FROM python:3.12-slim
++FROM node:20-alpine
+ 
+ WORKDIR /app
+ 
+-# Install system dependencies
+-RUN apt-get update && apt-get install -y --no-install-recommends \
+-    gcc \
+-    libpq-dev \
+-    && rm -rf /var/lib/apt/lists/*
+-
+-COPY requirements.txt .
+-RUN pip install --no-cache-dir -r requirements.txt
++# Install dependencies first (better Docker layer caching)
++COPY package.json package-lock.json ./
++RUN npm ci --silent
+ 
++# Copy source code
+ COPY . .
+ 
+-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+\ No newline at end of file
++EXPOSE 3000
++
++CMD ["npm", "start"]
+\ No newline at end of file
+diff --git a/frontend/src/App.js b/frontend/src/App.js
+index ef8eec1..54e33a0 100644
+--- a/frontend/src/App.js
++++ b/frontend/src/App.js
+@@ -1,6 +1,5 @@
+ import React, { useState } from 'react';
+ import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+ import {
+   Box,
+   CssBaseline,
+@@ -35,16 +34,6 @@ import ScenarioPlanner from './pages/ScenarioPlanner';
+ import MacroDashboard from './pages/MacroDashboard';
+ import Portfolio from './pages/Portfolio';
+ 
+-const queryClient = new QueryClient({
+-  defaultOptions: {
+-    queries: {
+-      refetchOnWindowFocus: false,
+-      retry: 1,
+-      staleTime: 60000,
+-    },
+-  },
+-});
+-
+ const theme = createTheme({
+   palette: {
+     mode: 'dark',
+@@ -239,13 +228,11 @@ function AppContent() {
+ 
+ function App() {
+   return (
+-    <QueryClientProvider client={queryClient}>
+-      <ThemeProvider theme={theme}>
+-        <Router>
+-          <AppContent />
+-        </Router>
+-      </ThemeProvider>
+-    </QueryClientProvider>
++    <ThemeProvider theme={theme}>
++      <Router>
++        <AppContent />
++      </Router>
++    </ThemeProvider>
+   );
+ }
+ 
+diff --git a/frontend/src/components/RegimeBanner.jsx b/frontend/src/components/RegimeBanner.jsx
+index dd19776..b77f172 100644
+--- a/frontend/src/components/RegimeBanner.jsx
++++ b/frontend/src/components/RegimeBanner.jsx
+@@ -11,7 +11,7 @@ const RegimeBanner = () => {
+     queryKey: ['marketStatus'],
+     queryFn: getMarketStatus,
+     staleTime: 60 * 60 * 1000, // 1 hour
+-    cacheTime: 2 * 60 * 60 * 1000, // 2 hours
++    gcTime: 2 * 60 * 60 * 1000, // 2 hours
+   });
+ 
+   if (isLoading) {
+diff --git a/frontend/src/index.js b/frontend/src/index.js
+index 8a56152..5bee1c3 100644
+--- a/frontend/src/index.js
++++ b/frontend/src/index.js
+@@ -10,7 +10,7 @@ const queryClient = new QueryClient({
+   defaultOptions: {
+     queries: {
+       staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
+-      cacheTime: 30 * 60 * 1000, // 30 minutes - cached data kept in memory
++      gcTime: 30 * 60 * 1000, // 30 minutes - cached data kept in memory
+       refetchOnWindowFocus: false, // Don't refetch when user returns to tab
+       refetchOnReconnect: false,
+       retry: 1, // Only retry once on failure
+diff --git a/frontend/src/pages/CrashMonitor.js b/frontend/src/pages/CrashMonitor.js
+index 507e3ef..3ce2b6c 100644
+--- a/frontend/src/pages/CrashMonitor.js
++++ b/frontend/src/pages/CrashMonitor.js
+@@ -1,13 +1,15 @@
+ import React, { useState } from 'react';
+ import { useQuery } from '@tanstack/react-query';
+ import {
+-  Box, Card, Typography, Grid, CircularProgress, Alert,
++  Box, Card, Typography, CircularProgress, Alert,
+   TextField, Button, Chip,
+ } from '@mui/material';
++import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+ import {
+   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
+ } from 'recharts';
+ import { getCrashPrediction } from '../services/api';
++import RegimeBanner from '../components/RegimeBanner';
+ 
+ const colors = { good: '#4caf50', warning: '#ffa726', bad: '#ef5350', info: '#64b5f6', muted: '#888', accent: '#fff' };
+ 
+@@ -51,16 +53,18 @@ const CrashMonitor = () => {
+     label, value: typeof value === 'number' ? value : 0,
+   }));
+ 
+-  // Build scenario breakdown
+-  const scenarioData = scenarios.map(s => ({
++  // Build scenario breakdown (scenarios is now an array from backend)
++  const scenarioData = (Array.isArray(scenarios) ? scenarios : []).map(s => ({
+     name: s.name || 'Unknown',
+     probability: (s.probability || 0) * 100,
+-    annualReturn: s.annual_return || 0,
+-    volatility: (s.volatility || 0) * 100,
++    annualReturn: s.annual_return || 0,  // Already in % from backend
++    volatility: s.volatility || 0,       // Already in % from backend
+   }));
+ 
+   return (
+     <Box>
++      <RegimeBanner />
++
+       <Box sx={{ mb: 4 }}>
+         <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Crash Monitor</Typography>
+         <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>AI-powered market crash prediction and risk analysis</Typography>
+@@ -152,7 +156,7 @@ const CrashMonitor = () => {
+                       <tr key={i}>
+                         <Box component="td" sx={{ fontWeight: 500, color: '#ccc' }}>{s.name}</Box>
+                         <Box component="td">{s.probability.toFixed(0)}%</Box>
+-                        <Box component="td" sx={{ color: s.annualReturn >= 0 ? colors.good : colors.bad, fontWeight: 500 }}>{s.annualReturn >= 0 ? '+' : ''}{(s.annualReturn * 100).toFixed(1)}%</Box>
++                        <Box component="td" sx={{ color: s.annualReturn >= 0 ? colors.good : colors.bad, fontWeight: 500 }}>{s.annualReturn >= 0 ? '+' : ''}{s.annualReturn.toFixed(1)}%</Box>
+                         <Box component="td" sx={{ color: colors.muted }}>{s.volatility.toFixed(0)}%</Box>
+                       </tr>
+                     ))}
+                     
