@@ -564,7 +564,10 @@ async def get_crash_prediction(ticker: str, db: Session = Depends(get_db)):
             "explanation": explanation,
             "top_factors": factors,
             "prediction_date": datetime.now().isoformat(),
-            "scenarios": result['scenarios'],
+            "scenarios": [
+                {"name": name, **details}
+                for name, details in result['scenarios'].items()
+            ],
             "crash_probabilities": result['crash_probabilities'],
             "risk_metrics": result['risk_metrics'],
             "cached": False,

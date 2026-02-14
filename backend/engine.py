@@ -147,9 +147,16 @@ def simulate_paths_jump_diffusion(
 
     # Pre-generate Student-t shocks (fat tails)
     df_param = CONFIG['t_df']
-    t_shocks = stats.t.rvs(df=df_param, size=(days, n_sims))
-    # Normalize so variance = 1
-    t_shocks = t_shocks / np.sqrt(df_param / (df_param - 2))
+    if HAS_SCIPY:
+        t_shocks = scipy_stats.t.rvs(df=df_param, size=(days, n_sims))
+        # Normalize so variance = 1
+        t_shocks = t_shocks / np.sqrt(df_param / (df_param - 2))
+    else:
+        # Fallback: use normal distribution with slightly heavier tails approximation
+        t_shocks = np.random.standard_normal((days, n_sims))
+        # Approximate fat tails by mixing with uniform noise
+        tail_mask = np.random.random((days, n_sims)) < 0.05
+        t_shocks[tail_mask] *= 2.5
 
     paths = np.zeros((days + 1, n_sims))
     paths[0] = start_price

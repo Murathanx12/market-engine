@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Card, Typography, Grid, CircularProgress, Alert,
+  Box, Card, Typography, CircularProgress, Alert,
   TextField, Button, Chip,
 } from '@mui/material';
+import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts';
 import { getCrashPrediction } from '../services/api';
+import RegimeBanner from '../components/RegimeBanner';
 
 const colors = { good: '#4caf50', warning: '#ffa726', bad: '#ef5350', info: '#64b5f6', muted: '#888', accent: '#fff' };
 
@@ -52,15 +54,17 @@ const CrashMonitor = () => {
   }));
 
   // Build scenario breakdown
-  const scenarioData = scenarios.map(s => ({
+  const scenarioData = (Array.isArray(scenarios) ? scenarios : []).map(s => ({
     name: s.name || 'Unknown',
     probability: (s.probability || 0) * 100,
-    annualReturn: s.annual_return || 0,
-    volatility: (s.volatility || 0) * 100,
+    annualReturn: s.annual_return || 0,  // Already in % from backend
+    volatility: s.volatility || 0,       // Already in % from backend
   }));
 
   return (
     <Box>
+    < RegimeBanner />
+
       <Box sx={{ mb: 4 }}>
         <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Crash Monitor</Typography>
         <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>AI-powered market crash prediction and risk analysis</Typography>
@@ -152,7 +156,7 @@ const CrashMonitor = () => {
                       <tr key={i}>
                         <Box component="td" sx={{ fontWeight: 500, color: '#ccc' }}>{s.name}</Box>
                         <Box component="td">{s.probability.toFixed(0)}%</Box>
-                        <Box component="td" sx={{ color: s.annualReturn >= 0 ? colors.good : colors.bad, fontWeight: 500 }}>{s.annualReturn >= 0 ? '+' : ''}{(s.annualReturn * 100).toFixed(1)}%</Box>
+                        <Box component="td" sx={{ color: s.annualReturn >= 0 ? colors.good : colors.bad, fontWeight: 500 }}>{s.annualReturn >= 0 ? '+' : ''}{s.annualReturn.toFixed(1)}%</Box>
                         <Box component="td" sx={{ color: colors.muted }}>{s.volatility.toFixed(0)}%</Box>
                       </tr>
                     ))}

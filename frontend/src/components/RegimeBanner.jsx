@@ -11,7 +11,7 @@ const RegimeBanner = () => {
     queryKey: ['marketStatus'],
     queryFn: getMarketStatus,
     staleTime: 60 * 60 * 1000, // 1 hour
-    cacheTime: 2 * 60 * 60 * 1000, // 2 hours
+    gcTime: 2 * 60 * 60 * 1000, // 2 hours
   });
 
   if (isLoading) {
