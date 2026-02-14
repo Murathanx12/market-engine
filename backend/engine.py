@@ -20,8 +20,13 @@ Key capabilities:
 
 import numpy as np
 import pandas as pd
-from scipy import stats
-from datetime import datetime, timedelta
+try:
+    from scipy import stats as scipy_stats
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+    scipy_stats = None
+    logging.warning("scipy not available - using numpy fallback for Student-t distribution")from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import logging
 
