@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-      staleTime: 60000,
-    },
-  },
-});
 import {
   Box,
   CssBaseline,
@@ -42,16 +33,6 @@ import SimulationAccuracy from './pages/SimulationAccuracy';
 import ScenarioPlanner from './pages/ScenarioPlanner';
 import MacroDashboard from './pages/MacroDashboard';
 import Portfolio from './pages/Portfolio';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 1,
-      staleTime: 60000,
-    },
-  },
-});
 
 const theme = createTheme({
   palette: {

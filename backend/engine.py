@@ -26,7 +26,8 @@ try:
 except ImportError:
     HAS_SCIPY = False
     scipy_stats = None
-    logging.warning("scipy not available - using numpy fallback for Student-t distribution")from datetime import datetime, timedelta
+    logging.warning("scipy not available - using numpy fallback for Student-t distribution")
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import logging
 
