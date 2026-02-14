@@ -897,6 +897,16 @@ NEGATIVE_WORDS = {
     'default', 'bankruptcy', 'layoff', 'sell-off', 'selloff', 'panic',
     'volatility', 'concern', 'worry', 'threat', 'war', 'conflict', 'tariff',
     'inflation', 'debt', 'deficit', 'uncertainty', 'slowdown', 'contraction',
+    'loss', 'losses', 'weak', 'weaken', 'negative', 'down', 'cut', 'cuts',
+    'slash', 'miss', 'missed', 'disappoint', 'worse', 'worst', 'trouble',
+    'struggle', 'struggling', 'headwind', 'pressure', 'restrict', 'restrict',
+    'penalty', 'fine', 'lawsuit', 'probe', 'investigate', 'fraud', 'scandal',
+    'protest', 'strike', 'shutdown', 'suspend', 'delay', 'stall', 'stalled',
+    'flee', 'exit', 'outflow', 'drain', 'squeeze', 'crunch', 'bust',
+    'overvalued', 'bubble', 'correction', 'tumble', 'slide', 'sink',
+    'erode', 'erosion', 'shrink', 'weigh', 'drag', 'dampen', 'hurt',
+    'harm', 'damage', 'disrupt', 'disruption', 'volatile', 'unstable',
+    'gaslighting', 'accused', 'blame', 'clash', 'tension', 'tensions',
 }
 
 POSITIVE_WORDS = {
@@ -904,6 +914,13 @@ POSITIVE_WORDS = {
     'optimism', 'recovery', 'expansion', 'profit', 'beat', 'exceed',
     'upgrade', 'breakthrough', 'innovation', 'hire', 'hiring', 'stimulus',
     'rate cut', 'easing', 'rebound', 'upbeat', 'strong', 'robust',
+    'up', 'high', 'higher', 'positive', 'improve', 'improved', 'improvement',
+    'boost', 'boosted', 'advance', 'win', 'success', 'outperform',
+    'top', 'best', 'soar', 'jump', 'leap', 'accelerate', 'momentum',
+    'shine', 'shining', 'stellar', 'solid', 'resilient', 'resilience',
+    'confidence', 'confident', 'exceed', 'exceeded', 'surplus', 'inflow',
+    'approval', 'approve', 'approved', 'ease', 'eases', 'eased', 'relief',
+    'stabilize', 'stable', 'steady', 'strengthen', 'support', 'backed',
 }
 
 # Impact categories with historical market sensitivity multipliers
@@ -971,7 +988,7 @@ def analyze_sentiment(headline: str) -> Dict:
     severity = min(10, max(1, base_severity + int(abs(score) * 2)))
 
     # Estimated S&P 500 impact
-    estimated_impact = score * market_weight * 0.003  # ~0.3% per unit sentiment
+    estimated_impact = score * market_weight * 0.01  # ~1% per unit sentiment
 
     return {
         'score': round(score, 3),

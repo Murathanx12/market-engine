@@ -1,154 +1,349 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Card, Typography, Grid, CircularProgress, Alert,
-  Slider, Chip,
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  Chip,
+  Slider,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-} from 'recharts';
+import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { useQuery } from '@tanstack/react-query';
 import { getNews } from '../services/api';
-
-const colors = { good: '#4caf50', bad: '#ef5350', info: '#64b5f6', warning: '#ffa726', muted: '#888', accent: '#fff' };
-
-const sentimentColor = (score) => score > 0.15 ? colors.good : score < -0.15 ? colors.bad : colors.muted;
-const impactColor = (impact) => impact > 0 ? colors.good : impact < 0 ? colors.bad : colors.muted;
+import RegimeBanner from '../components/RegimeBanner';
+import SentimentVeryDissatisfiedIcon from '@mui/icons-material/SentimentVeryDissatisfied';
+import SentimentNeutralIcon from '@mui/icons-material/SentimentNeutral';
+import SentimentSatisfiedIcon from '@mui/icons-material/SentimentSatisfied';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
 const NewsAnalysis = () => {
   const [days, setDays] = useState(7);
   const [minSeverity, setMinSeverity] = useState(1);
 
-  const { data, isLoading, error } = useQuery({
+  const { data: news, isLoading, error } = useQuery({
     queryKey: ['news', days, minSeverity],
     queryFn: () => getNews(days, minSeverity),
-    staleTime: 300000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
-  if (isLoading) return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress sx={{ color: '#fff' }} /></Box>;
-  if (error) return <Alert severity="error">Error: {error?.message}</Alert>;
+  const getSentimentIcon = (label) => {
+    switch (label) {
+      case 'positive':
+        return <SentimentSatisfiedIcon sx={{ color: '#00e676' }} />;
+      case 'negative':
+        return <SentimentVeryDissatisfiedIcon sx={{ color: '#ff1744' }} />;
+      default:
+        return <SentimentNeutralIcon sx={{ color: '#888' }} />;
+    }
+  };
 
-  const news = Array.isArray(data) ? data : [];
+  const getSentimentColor = (label) => {
+    switch (label) {
+      case 'positive':
+        return '#00e676';
+      case 'negative':
+        return '#ff1744';
+      default:
+        return '#888';
+    }
+  };
 
-  // Category breakdown for chart
-  const catMap = {};
-  news.forEach(n => {
-    const cat = n.impact_category || 'General';
-    if (!catMap[cat]) catMap[cat] = { count: 0, avgSentiment: 0, totalImpact: 0 };
-    catMap[cat].count++;
-    catMap[cat].avgSentiment += n.sentiment_score || 0;
-    catMap[cat].totalImpact += n.estimated_impact || 0;
-  });
-  const catData = Object.entries(catMap).map(([name, d]) => ({
-    name,
-    count: d.count,
-    avgSentiment: d.count > 0 ? d.avgSentiment / d.count : 0,
-    totalImpact: d.totalImpact,
-  }));
+  const getCategoryColor = (category) => {
+    const colors = {
+      'Fed': '#ff1744',
+      'Earnings': '#00d4ff',
+      'Geopolitical': '#ffc107',
+      'Employment': '#00e676',
+      'Inflation': '#ff5722',
+      'General': '#888',
+    };
+    return colors[category] || '#888';
+  };
 
-  const avgSentiment = news.length > 0 ? news.reduce((s, n) => s + (n.sentiment_score || 0), 0) / news.length : 0;
+  // Calculate aggregate sentiment
+  const aggregateSentiment = React.useMemo(() => {
+    if (!news || !Array.isArray(news)) return null;
+    
+    const total = news.length;
+    const positive = news.filter(n => n.sentiment_label === 'positive').length;
+    const negative = news.filter(n => n.sentiment_label === 'negative').length;
+    const neutral = total - positive - negative;
+    const avgScore = news.reduce((sum, n) => sum + n.sentiment_score, 0) / total;
+
+    return {
+      total,
+      positive,
+      negative,
+      neutral,
+      avgScore,
+      positivePercent: (positive / total) * 100,
+      negativePercent: (negative / total) * 100,
+      neutralPercent: (neutral / total) * 100,
+    };
+  }, [news]);
 
   return (
-    <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>News Impact</Typography>
-        <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>Sentiment analysis and estimated market impact</Typography>
-      </Box>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+      <RegimeBanner />
 
-      {/* Filters */}
-      <Card sx={{ p: 3, mb: 3 }}>
-        <Grid container spacing={4} alignItems="center">
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mb: 1 }}>Time Range: {days} days</Typography>
-            <Slider value={days} onChange={(_, v) => setDays(v)} min={1} max={30} sx={{ color: '#fff' }} />
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+          NEWS IMPACT ANALYSIS
+        </Typography>
+
+        {/* Filters */}
+        <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Time Period: {days} days
+              </Typography>
+              <Slider
+                value={days}
+                onChange={(e, value) => setDays(value)}
+                min={1}
+                max={30}
+                marks={[
+                  { value: 1, label: '1d' },
+                  { value: 7, label: '7d' },
+                  { value: 14, label: '14d' },
+                  { value: 30, label: '30d' },
+                ]}
+                sx={{
+                  color: '#00d4ff',
+                  '& .MuiSlider-markLabel': { color: '#888' },
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <FormControl fullWidth>
+                <InputLabel sx={{ color: '#888' }}>Min Severity</InputLabel>
+                <Select
+                  value={minSeverity}
+                  onChange={(e) => setMinSeverity(e.target.value)}
+                  label="Min Severity"
+                  sx={{
+                    color: '#fff',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#00d4ff' },
+                  }}
+                >
+                  <MenuItem value={1}>All (1+)</MenuItem>
+                  <MenuItem value={5}>Moderate (5+)</MenuItem>
+                  <MenuItem value={7}>Important (7+)</MenuItem>
+                  <MenuItem value={9}>Critical (9+)</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
           </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mb: 1 }}>Min Severity: {minSeverity}</Typography>
-            <Slider value={minSeverity} onChange={(_, v) => setMinSeverity(v)} min={1} max={10} sx={{ color: '#fff' }} />
-          </Grid>
-        </Grid>
-      </Card>
+        </Paper>
 
-      <Grid container spacing={3}>
-        {/* Summary metrics */}
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase' }}>Avg Sentiment</Typography>
-            <Typography sx={{ fontSize: '2rem', fontWeight: 700, color: sentimentColor(avgSentiment) }}>
-              {avgSentiment >= 0 ? '+' : ''}{avgSentiment.toFixed(2)}
-            </Typography>
-            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>
-              {avgSentiment > 0.15 ? 'Positive' : avgSentiment < -0.15 ? 'Negative' : 'Neutral'} · {news.length} articles
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 8 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 2 }}>Articles by Category</Typography>
-            {catData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={150}>
-                <BarChart data={catData} layout="vertical" margin={{ left: 80 }}>
-                  <XAxis type="number" stroke="#555" />
-                  <YAxis type="category" dataKey="name" stroke="#555" tick={{ fontSize: 11 }} width={75} />
-                  <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }} />
-                  <Bar dataKey="count" radius={[0, 6, 6, 0]}>
-                    {catData.map((d, i) => <Cell key={i} fill={sentimentColor(d.avgSentiment)} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <Typography sx={{ color: 'text.secondary' }}>No data</Typography>
-            )}
-          </Card>
-        </Grid>
+        {/* Loading State */}
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+            <CircularProgress sx={{ color: '#00d4ff' }} />
+          </Box>
+        )}
 
-        {/* News List */}
-        {news.map((n, idx) => (
-          <Grid size={{ xs: 12 }} key={n.id || idx}>
-            <Card sx={{ p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, flexDirection: { xs: 'column', md: 'row' }, gap: 1.5 }}>
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontSize: '0.92rem', fontWeight: 500, color: '#ddd', mb: 0.5, lineHeight: 1.4 }}>{n.headline}</Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
-                  <Typography sx={{ fontSize: '0.75rem', color: '#666' }}>{n.source}</Typography>
-                  <Typography sx={{ fontSize: '0.75rem', color: '#555' }}>·</Typography>
-                  <Typography sx={{ fontSize: '0.75rem', color: '#666' }}>{n.date?.slice(0, 10)}</Typography>
-                  <Chip label={n.impact_category || 'General'} size="small" sx={{ height: 20, fontSize: '0.68rem', bgcolor: 'rgba(255,255,255,0.05)', color: '#888' }} />
-                  <Chip
-                    label={`Severity: ${n.severity || 0}`}
-                    size="small"
+        {/* Error State */}
+        {error && (
+          <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #ff1744' }}>
+            <Typography color="error">
+              Error loading news: {error.message}
+            </Typography>
+          </Paper>
+        )}
+
+        {/* Aggregate Sentiment */}
+        {aggregateSentiment && (
+          <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
+            <Typography variant="h6" sx={{ mb: 2 }}>
+              Aggregate Market Sentiment
+            </Typography>
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Average Score
+                  </Typography>
+                  <Typography
+                    variant="h3"
                     sx={{
-                      height: 20, fontSize: '0.68rem',
-                      bgcolor: (n.severity || 0) >= 8 ? 'rgba(239,83,80,0.12)' : (n.severity || 0) >= 5 ? 'rgba(255,167,38,0.12)' : 'rgba(76,175,80,0.12)',
-                      color: (n.severity || 0) >= 8 ? colors.bad : (n.severity || 0) >= 5 ? colors.warning : colors.good,
+                      fontWeight: 'bold',
+                      color: aggregateSentiment.avgScore > 0 ? '#00e676' : aggregateSentiment.avgScore < 0 ? '#ff1744' : '#888'
                     }}
-                  />
-                </Box>
-              </Box>
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', minWidth: 180 }}>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '0.68rem', color: '#555', textTransform: 'uppercase' }}>Sentiment</Typography>
-                  <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: sentimentColor(n.sentiment_score) }}>
-                    {(n.sentiment_score || 0) >= 0 ? '+' : ''}{(n.sentiment_score || 0).toFixed(2)}
+                  >
+                    {aggregateSentiment.avgScore.toFixed(2)}
                   </Typography>
                 </Box>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: '0.68rem', color: '#555', textTransform: 'uppercase' }}>S&P Impact</Typography>
-                  <Typography sx={{ fontSize: '1rem', fontWeight: 600, color: impactColor(n.estimated_impact) }}>
-                    {(n.estimated_impact || 0) >= 0 ? '+' : ''}{(n.estimated_impact || 0).toFixed(2)}%
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                  <SentimentSatisfiedIcon sx={{ fontSize: 40, color: '#00e676', mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#00e676' }}>
+                    {aggregateSentiment.positive}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Positive ({aggregateSentiment.positivePercent.toFixed(0)}%)
                   </Typography>
                 </Box>
-              </Box>
-            </Card>
-          </Grid>
-        ))}
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                  <SentimentNeutralIcon sx={{ fontSize: 40, color: '#888', mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#888' }}>
+                    {aggregateSentiment.neutral}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Neutral ({aggregateSentiment.neutralPercent.toFixed(0)}%)
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 12, md: 3 }}>
+                <Box sx={{ textAlign: 'center', p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                  <SentimentVeryDissatisfiedIcon sx={{ fontSize: 40, color: '#ff1744', mb: 1 }} />
+                  <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#ff1744' }}>
+                    {aggregateSentiment.negative}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Negative ({aggregateSentiment.negativePercent.toFixed(0)}%)
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        )}
 
-        {news.length === 0 && (
-          <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 4, textAlign: 'center' }}>
-              <Typography sx={{ color: 'text.secondary' }}>No news articles found. Adjust filters or wait for scheduler to fetch data.</Typography>
-            </Card>
+        {/* News Items */}
+        {news && Array.isArray(news) && (
+          <Grid container spacing={2}>
+            {news.map((item, idx) => (
+              <Grid size={{ xs: 12 }} key={item.id || idx}>
+                <Paper
+                  sx={{
+                    p: 3,
+                    bgcolor: '#111',
+                    border: '1px solid #333',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      borderColor: '#00d4ff',
+                      transform: 'translateX(4px)',
+                    },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'start', gap: 2 }}>
+                    <Box sx={{ flex: 1 }}>
+                      {/* Headline */}
+                      <Typography variant="h6" sx={{ mb: 1, fontWeight: 'bold' }}>
+                        {item.headline}
+                      </Typography>
+
+                      {/* Meta Info */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                        <Typography variant="caption" color="text.secondary">
+                          {item.source} • {new Date(item.date).toLocaleDateString()} {new Date(item.date).toLocaleTimeString()}
+                        </Typography>
+                        
+                        <Chip
+                          label={item.impact_category}
+                          size="small"
+                          sx={{
+                            bgcolor: getCategoryColor(item.impact_category),
+                            color: '#fff',
+                            fontWeight: 'bold',
+                            fontSize: '0.65rem',
+                          }}
+                        />
+
+                        <Chip
+                          label={`Severity: ${item.severity}/10`}
+                          size="small"
+                          variant="outlined"
+                          sx={{
+                            borderColor: item.severity >= 8 ? '#ff1744' : item.severity >= 6 ? '#ffc107' : '#888',
+                            color: item.severity >= 8 ? '#ff1744' : item.severity >= 6 ? '#ffc107' : '#888',
+                          }}
+                        />
+                      </Box>
+
+                      {/* Sentiment Bar */}
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {getSentimentIcon(item.sentiment_label)}
+                        <Box sx={{ flex: 1 }}>
+                          <Box
+                            sx={{
+                              height: '8px',
+                              bgcolor: '#1a1a1a',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                              position: 'relative',
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                position: 'absolute',
+                                left: '50%',
+                                width: `${Math.abs(item.sentiment_score) * 50}%`,
+                                height: '100%',
+                                bgcolor: getSentimentColor(item.sentiment_label),
+                                transition: 'width 0.3s ease',
+                                ...(item.sentiment_score < 0 ? { right: '50%' } : { left: '50%' }),
+                              }}
+                            />
+                          </Box>
+                          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                            Sentiment Score: {item.sentiment_score.toFixed(2)}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+
+                    {/* Impact Metric */}
+                    <Box sx={{ textAlign: 'right', minWidth: '100px' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        Est. Impact
+                      </Typography>
+                      <Typography
+                        variant="h5"
+                        sx={{
+                          fontWeight: 'bold',
+                          color: item.estimated_impact > 0 ? '#00e676' : item.estimated_impact < 0 ? '#ff1744' : '#888',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'flex-end',
+                          gap: 0.5,
+                        }}
+                      >
+                        {item.estimated_impact > 0 ? <TrendingUpIcon /> : item.estimated_impact < 0 ? <TrendingDownIcon /> : null}
+                        {item.estimated_impact > 0 ? '+' : ''}
+                        {item.estimated_impact.toFixed(2)}%
+                      </Typography>
+                    </Box>
+                  </Box>
+                </Paper>
+              </Grid>
+            ))}
           </Grid>
         )}
-      </Grid>
+
+        {/* Empty State */}
+        {news && Array.isArray(news) && news.length === 0 && !isLoading && (
+          <Paper sx={{ p: 5, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+            <Typography variant="h6" color="text.secondary">
+              No news found for the selected filters
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+              Try adjusting the time period or severity level
+            </Typography>
+          </Paper>
+        )}
+      </Box>
     </Box>
   );
 };

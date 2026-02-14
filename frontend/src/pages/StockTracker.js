@@ -1,217 +1,433 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Card, Typography, Grid, CircularProgress, Alert,
-  TextField, Button, Chip,
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  TextField,
+  Button,
+  Alert,
+  Chip,
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
+import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  LineChart, Line,
+  getStockProjection,
+  getStockHistory,
+  addToPortfolio,
+} from '../services/api';
+import RegimeBanner from '../components/RegimeBanner';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Area,
+  AreaChart,
 } from 'recharts';
-import { getStockProjection, getStockHistory } from '../services/api';
-
-const colors = { good: '#4caf50', bad: '#ef5350', info: '#64b5f6', warning: '#ffa726', muted: '#888', accent: '#fff' };
-
-function MetricCard({ title, value, subtitle, color = colors.accent }) {
-  return (
-    <Card sx={{ p: 3, height: '100%' }}>
-      <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</Typography>
-      <Typography sx={{ fontSize: '2rem', fontWeight: 700, color, lineHeight: 1.2 }}>{value}</Typography>
-      {subtitle && <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mt: 0.5 }}>{subtitle}</Typography>}
-    </Card>
-  );
-}
+import AddIcon from '@mui/icons-material/Add';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
 const StockTracker = () => {
-  const [ticker, setTicker] = useState('NVDA');
-  const [inputTicker, setInputTicker] = useState('NVDA');
+  const [ticker, setTicker] = useState('AAPL');
+  const [searchTicker, setSearchTicker] = useState('AAPL');
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [shares, setShares] = useState('');
+  const [purchasePrice, setPurchasePrice] = useState('');
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['stock', ticker],
-    queryFn: () => getStockProjection(ticker),
-    staleTime: 300000,
+  const queryClient = useQueryClient();
+
+  // Fetch stock projection
+  const { data: projection, isLoading: projectionLoading, error: projectionError } = useQuery({
+    queryKey: ['stockProjection', searchTicker],
+    queryFn: () => getStockProjection(searchTicker),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: !!searchTicker,
   });
 
-  const { data: histData } = useQuery({
-    queryKey: ['stock-history', ticker],
-    queryFn: () => getStockHistory(ticker, '1y'),
-    staleTime: 600000,
+  // Fetch stock history for chart
+  const { data: history, isLoading: historyLoading } = useQuery({
+    queryKey: ['stockHistory', searchTicker],
+    queryFn: () => getStockHistory(searchTicker, '1y'),
+    staleTime: 30 * 60 * 1000, // 30 minutes
+    enabled: !!searchTicker,
   });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setTicker(inputTicker.toUpperCase());
+  // Add to portfolio mutation
+  const addMutation = useMutation({
+    mutationFn: addToPortfolio,
+    onSuccess: () => {
+      queryClient.invalidateQueries(['portfolio']);
+      setAddDialogOpen(false);
+      setShares('');
+      setPurchasePrice('');
+    },
+  });
+
+  const handleSearch = () => {
+    if (ticker.trim()) {
+      setSearchTicker(ticker.toUpperCase().trim());
+    }
   };
 
-  if (isLoading) return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress size={48} sx={{ color: '#ffffff' }} /></Box>;
-  if (error) return <Alert severity="error" sx={{ bgcolor: 'rgba(239,83,80,0.08)', color: colors.bad }}>Error: {error?.message || 'Unknown error'}</Alert>;
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
-  const currentPrice = data?.current_price ?? 0;
-  const projections = data?.projections || {};
-  const proj1Y = projections['1Y'] || {};
-  // const proj5Y = projections['5Y'] || {};
-  const change1Y = currentPrice > 0 ? (((proj1Y.mean || currentPrice) - currentPrice) / currentPrice * 100) : 0;
+  const handleAddToPortfolio = () => {
+    if (!shares || parseFloat(shares) <= 0) {
+      alert('Please enter a valid number of shares');
+      return;
+    }
 
-  // Projection chart with confidence bands
-  const projChartData = [
-    { period: 'Now', mean: currentPrice, p05: currentPrice, p25: currentPrice, p75: currentPrice, p95: currentPrice },
-    ...['1M', '6M', '1Y', '5Y'].filter(k => projections[k]).map(k => ({
-      period: k,
-      mean: projections[k].mean,
-      p05: projections[k].p05,
-      p25: projections[k].p25,
-      p75: projections[k].p75,
-      p95: projections[k].p95,
-    })),
-  ];
+    const payload = {
+      ticker: searchTicker,
+      shares: parseFloat(shares),
+      purchase_price: purchasePrice ? parseFloat(purchasePrice) : null,
+    };
 
-  // Historical price chart
-  const histChartData = (histData?.prices || []).map(p => ({
-    date: p.date,
-    close: p.close,
-  }));
+    addMutation.mutate(payload);
+  };
+
+  const currentPrice = projection?.data?.current_price || 0;
+  const projections = projection?.data?.projections || {};
 
   return (
-    <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Stock Tracker</Typography>
-        <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>
-          Monte Carlo projections with institutional calibration
+    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+      <RegimeBanner />
+
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+          STOCK TRACKER
         </Typography>
-      </Box>
 
-      <Card sx={{ p: 2.5, mb: 3 }}>
-        <form onSubmit={handleSubmit}>
-          <Box display="flex" gap={2} alignItems="center">
-            <TextField placeholder="Enter ticker (e.g., NVDA, AAPL)" value={inputTicker} onChange={(e) => setInputTicker(e.target.value)} size="small" sx={{ width: 260 }} />
-            <Button type="submit" variant="contained" sx={{ px: 3 }}>Track Stock</Button>
-            {data?.name && <Typography sx={{ ml: 2, color: '#888', fontSize: '0.88rem' }}>{data.name}</Typography>}
-          </Box>
-        </form>
-      </Card>
-
-      <Grid container spacing={3}>
-        {/* Metric Cards */}
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard title="Current Price" value={`$${currentPrice.toFixed(2)}`} subtitle={`${data?.sector || ''} · ${ticker}`} />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="1Y Projection (Mean)"
-            value={`$${(proj1Y.mean || 0).toFixed(2)}`}
-            color={change1Y >= 0 ? colors.good : colors.bad}
-            subtitle={`${change1Y >= 0 ? '+' : ''}${change1Y.toFixed(1)}% expected`}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="Analyst Target"
-            value={data?.analyst_target ? `$${data.analyst_target.toFixed(2)}` : 'N/A'}
-            color={colors.info}
-            subtitle={data?.analyst_target ? `${((data.analyst_target / currentPrice - 1) * 100).toFixed(1)}% upside` : ''}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="Sharpe Ratio"
-            value={data?.sharpe?.toFixed(2) || 'N/A'}
-            color={(data?.sharpe || 0) > 0.5 ? colors.good : (data?.sharpe || 0) > 0 ? colors.warning : colors.bad}
-            subtitle={`Vol: ${data?.historical_vol || 0}%`}
-          />
-        </Grid>
-
-        {/* Historical Price Chart */}
-        {histChartData.length > 0 && (
-          <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 3 }}>
-              <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 3 }}>1-Year Price History</Typography>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={histChartData}>
-                  <XAxis dataKey="date" stroke="#555" tick={{ fontSize: 10 }} interval={Math.floor(histChartData.length / 8)} />
-                  <YAxis stroke="#555" tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }}
-                    formatter={(v) => [`$${Number(v).toFixed(2)}`, 'Close']}
-                  />
-                  <Line type="monotone" dataKey="close" stroke="#64b5f6" strokeWidth={1.5} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </Card>
+        {/* Search Box */}
+        <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
+          <Grid container spacing={2} alignItems="center">
+            <Grid size={{ xs: 12, md: 8 }}>
+              <TextField
+                fullWidth
+                label="Ticker Symbol"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                onKeyPress={handleKeyPress}
+                placeholder="e.g., AAPL, MSFT, NVDA"
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    color: '#fff',
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+                  },
+                  '& .MuiInputLabel-root': { color: '#888' },
+                }}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleSearch}
+                disabled={projectionLoading}
+                sx={{
+                  bgcolor: '#00d4ff',
+                  color: '#000',
+                  fontWeight: 'bold',
+                  height: '56px',
+                  '&:hover': { bgcolor: '#00b8e6' },
+                }}
+              >
+                {projectionLoading ? <CircularProgress size={24} /> : 'SEARCH'}
+              </Button>
+            </Grid>
           </Grid>
+        </Paper>
+
+        {/* Loading State */}
+        {projectionLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+            <CircularProgress sx={{ color: '#00d4ff' }} />
+          </Box>
         )}
 
-        {/* Projection Fan Chart */}
-        <Grid size={{ xs: 12 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 1 }}>Monte Carlo Projection (Confidence Bands)</Typography>
-            <Typography sx={{ color: 'text.secondary', fontSize: '0.82rem', mb: 3 }}>
-              Shaded: 90% confidence interval (p05–p95) · Inner: 50% interval (p25–p75) · Line: Mean
-            </Typography>
-            <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={projChartData}>
-                <defs>
-                  <linearGradient id="outerBand" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#64b5f6" stopOpacity={0.12} />
-                    <stop offset="95%" stopColor="#64b5f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="innerBand" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#64b5f6" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#64b5f6" stopOpacity={0.05} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="period" stroke="#555" />
-                <YAxis stroke="#555" tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }}
-                  formatter={(v, name) => [`$${Number(v).toFixed(2)}`, name]}
-                />
-                <Area type="monotone" dataKey="p95" stroke="none" fill="url(#outerBand)" />
-                <Area type="monotone" dataKey="p75" stroke="none" fill="url(#innerBand)" />
-                <Area type="monotone" dataKey="p25" stroke="none" fill="transparent" />
-                <Area type="monotone" dataKey="p05" stroke="none" fill="transparent" />
-                <Line type="monotone" dataKey="mean" stroke="#ffffff" strokeWidth={2} dot={{ r: 4, fill: '#fff' }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-        </Grid>
+        {/* Error State */}
+        {projectionError && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Error fetching stock data: {projectionError.message}
+          </Alert>
+        )}
 
-        {/* Projection Details Table */}
-        <Grid size={{ xs: 12 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 2 }}>Projection Details</Typography>
-            <Box sx={{ overflowX: 'auto' }}>
-              <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', '& th, & td': { px: 2, py: 1.5, textAlign: 'right', borderBottom: '1px solid rgba(255,255,255,0.04)' }, '& th:first-of-type, & td:first-of-type': { textAlign: 'left' } }}>
-                <thead>
-                  <tr>
-                    {['Horizon', 'Mean', 'Median', 'P5 (Bear)', 'P25', 'P75', 'P95 (Bull)', 'Return'].map(h => (
-                      <Box component="th" key={h} sx={{ fontSize: '0.75rem', color: 'text.secondary', textTransform: 'uppercase', fontWeight: 600 }}>{h}</Box>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {['1M', '6M', '1Y', '5Y'].filter(k => projections[k]).map(k => {
-                    const p = projections[k];
-                    return (
-                      <tr key={k}>
-                        <Box component="td" sx={{ fontWeight: 600 }}>{k}</Box>
-                        <Box component="td">${p.mean?.toFixed(2)}</Box>
-                        <Box component="td">${p.median?.toFixed(2)}</Box>
-                        <Box component="td" sx={{ color: colors.bad }}>${p.p05?.toFixed(2)}</Box>
-                        <Box component="td">${p.p25?.toFixed(2)}</Box>
-                        <Box component="td">${p.p75?.toFixed(2)}</Box>
-                        <Box component="td" sx={{ color: colors.good }}>${p.p95?.toFixed(2)}</Box>
-                        <Box component="td" sx={{ color: (p.return_pct || 0) >= 0 ? colors.good : colors.bad, fontWeight: 600 }}>
-                          {(p.return_pct || 0) >= 0 ? '+' : ''}{(p.return_pct || 0).toFixed(1)}%
-                        </Box>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </Box>
-            </Box>
-          </Card>
-        </Grid>
-      </Grid>
+        {/* Stock Data */}
+        {projection?.data && !projectionLoading && (
+          <Grid container spacing={3}>
+            {/* Current Price Card */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  {searchTicker} - Current Price
+                </Typography>
+                <Typography
+                  variant="h2"
+                  sx={{ my: 2, fontWeight: 'bold', color: '#00d4ff' }}
+                >
+                  ${currentPrice.toFixed(2)}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  startIcon={<AddIcon />}
+                  onClick={() => setAddDialogOpen(true)}
+                  sx={{
+                    borderColor: '#00d4ff',
+                    color: '#00d4ff',
+                    '&:hover': {
+                      borderColor: '#00b8e6',
+                      bgcolor: 'rgba(0, 212, 255, 0.1)',
+                    },
+                  }}
+                >
+                  Add to Portfolio
+                </Button>
+                {projection.status === 'no_data' && (
+                  <Typography variant="caption" display="block" sx={{ mt: 2, color: '#ffc107' }}>
+                    ⚠️ Using dummy data - scheduler hasn't run yet
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
+
+            {/* Projections */}
+            <Grid size={{ xs: 12, md: 8 }}>
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  Price Projections
+                </Typography>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        30 Days
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                        ${projections['30d']?.toFixed(2) || '0.00'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: projections['30d'] > currentPrice ? '#00e676' : '#ff1744' }}>
+                        {projections['30d'] > currentPrice ? '+' : ''}
+                        {(((projections['30d'] - currentPrice) / currentPrice) * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        6 Months
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                        ${projections['180d']?.toFixed(2) || '0.00'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: projections['180d'] > currentPrice ? '#00e676' : '#ff1744' }}>
+                        {projections['180d'] > currentPrice ? '+' : ''}
+                        {(((projections['180d'] - currentPrice) / currentPrice) * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        1 Year
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                        ${projections['365d']?.toFixed(2) || '0.00'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: projections['365d'] > currentPrice ? '#00e676' : '#ff1744' }}>
+                        {projections['365d'] > currentPrice ? '+' : ''}
+                        {(((projections['365d'] - currentPrice) / currentPrice) * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </Grid>
+
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">
+                        5 Years
+                      </Typography>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                        ${projections['1825d']?.toFixed(2) || '0.00'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: projections['1825d'] > currentPrice ? '#00e676' : '#ff1744' }}>
+                        {projections['1825d'] > currentPrice ? '+' : ''}
+                        {(((projections['1825d'] - currentPrice) / currentPrice) * 100).toFixed(1)}%
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+
+                <Divider sx={{ my: 2, borderColor: '#333' }} />
+
+                {projection.data.analyst_target && (
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Analyst Target (1Y)
+                    </Typography>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#888' }}>
+                      ${projection.data.analyst_target.toFixed(2)}
+                    </Typography>
+                  </Box>
+                )}
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Volatility
+                  </Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                    {(projection.data.volatility * 100).toFixed(1)}%
+                  </Typography>
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Price History Chart */}
+            {history?.prices && history.prices.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>
+                    1-Year Price History
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <AreaChart data={history.prices}>
+                      <defs>
+                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#666"
+                        tick={{ fill: '#666', fontSize: 12 }}
+                        tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
+                      />
+                      <YAxis
+                        stroke="#666"
+                        tick={{ fill: '#666' }}
+                        domain={['auto', 'auto']}
+                        tickFormatter={(val) => `$${val.toFixed(0)}`}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                        labelStyle={{ color: '#888' }}
+                        formatter={(value) => [`$${value.toFixed(2)}`, 'Price']}
+                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="close"
+                        stroke="#00d4ff"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorPrice)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </Paper>
+              </Grid>
+            )}
+
+            {historyLoading && (
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
+                  <CircularProgress sx={{ color: '#00d4ff' }} size={30} />
+                </Box>
+              </Grid>
+            )}
+          </Grid>
+        )}
+      </Box>
+
+      {/* Add to Portfolio Dialog */}
+      <Dialog
+        open={addDialogOpen}
+        onClose={() => setAddDialogOpen(false)}
+        PaperProps={{
+          sx: { bgcolor: '#111', border: '1px solid #333', color: '#fff' }
+        }}
+      >
+        <DialogTitle>Add {searchTicker} to Portfolio</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Number of Shares"
+            type="number"
+            fullWidth
+            value={shares}
+            onChange={(e) => setShares(e.target.value)}
+            sx={{
+              mt: 2,
+              '& .MuiOutlinedInput-root': {
+                color: '#fff',
+                '& fieldset': { borderColor: '#444' },
+                '&:hover fieldset': { borderColor: '#666' },
+                '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+              },
+              '& .MuiInputLabel-root': { color: '#888' },
+            }}
+          />
+          <TextField
+            margin="dense"
+            label="Purchase Price (optional)"
+            type="number"
+            fullWidth
+            value={purchasePrice}
+            onChange={(e) => setPurchasePrice(e.target.value)}
+            placeholder={`Current: $${currentPrice.toFixed(2)}`}
+            sx={{
+              mt: 2,
+              '& .MuiOutlinedInput-root': {
+                color: '#fff',
+                '& fieldset': { borderColor: '#444' },
+                '&:hover fieldset': { borderColor: '#666' },
+                '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+              },
+              '& .MuiInputLabel-root': { color: '#888' },
+            }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            Leave blank to use current price: ${currentPrice.toFixed(2)}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddDialogOpen(false)} sx={{ color: '#888' }}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleAddToPortfolio}
+            variant="contained"
+            disabled={addMutation.isLoading}
+            sx={{
+              bgcolor: '#00d4ff',
+              color: '#000',
+              '&:hover': { bgcolor: '#00b8e6' },
+            }}
+          >
+            {addMutation.isLoading ? <CircularProgress size={20} /> : 'Add'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

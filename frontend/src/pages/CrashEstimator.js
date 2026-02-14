@@ -1,174 +1,253 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Card, Typography, Grid, CircularProgress, Alert, Chip,
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  Chip,
 } from '@mui/material';
-import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell,
-} from 'recharts';
+import Grid from '@mui/material/Grid2';
+import { useQuery } from '@tanstack/react-query';
 import { getCrashEstimator } from '../services/api';
-
-const colors = { good: '#4caf50', warning: '#ffa726', bad: '#ef5350', info: '#64b5f6', muted: '#888', accent: '#fff' };
-
-function MetricCard({ title, value, subtitle, color = colors.accent }) {
-  return (
-    <Card sx={{ p: 3, height: '100%' }}>
-      <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</Typography>
-      <Typography sx={{ fontSize: '2rem', fontWeight: 700, color, lineHeight: 1.2 }}>{value}</Typography>
-      {subtitle && <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mt: 0.5 }}>{subtitle}</Typography>}
-    </Card>
-  );
-}
+import RegimeBanner from '../components/RegimeBanner';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+  Area,
+  AreaChart,
+} from 'recharts';
+import WarningIcon from '@mui/icons-material/Warning';
 
 const CrashEstimator = () => {
   const { data, isLoading, error } = useQuery({
     queryKey: ['crashEstimator'],
     queryFn: () => getCrashEstimator(60),
-    staleTime: 600000,
+    staleTime: 60 * 60 * 1000, // 1 hour
   });
 
-  if (isLoading) return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress sx={{ color: '#fff' }} /></Box>;
-  if (error) return <Alert severity="error">Error loading crash estimator: {error?.message}</Alert>;
+  // Transform monthly probabilities for chart
+  const chartData = React.useMemo(() => {
+    if (!data?.monthly_probabilities) return [];
+    
+    return data.monthly_probabilities.map((item) => ({
+      month: item.month,
+      probability: item.probability * 100, // Convert to percentage
+    }));
+  }, [data]);
 
-  const monthly = data?.monthly_probabilities || [];
-  const factors = data?.contributing_factors || [];
-
-  // Prepare chart data - cumulative probability
-  const cumulativeData = monthly.map(m => ({
-    date: m.date,
-    month: m.month,
-    probability: m.cumulative,
-    marginal: m.probability,
-  }));
-
-  // Probability buckets for bar chart
-  const buckets = [
-    { label: '3mo', value: monthly.find(m => m.month === 3)?.cumulative || 0 },
-    { label: '6mo', value: monthly.find(m => m.month === 6)?.cumulative || 0 },
-    { label: '1yr', value: monthly.find(m => m.month === 12)?.cumulative || 0 },
-    { label: '2yr', value: monthly.find(m => m.month === 24)?.cumulative || 0 },
-    { label: '3yr', value: monthly.find(m => m.month === 36)?.cumulative || 0 },
-    { label: '5yr', value: monthly.find(m => m.month === 60)?.cumulative || 0 },
-  ];
-
-  const barColor = (val) => val > 30 ? colors.bad : val > 15 ? colors.warning : colors.good;
+  // Find peak risk month
+  const peakMonth = React.useMemo(() => {
+    if (!chartData.length) return null;
+    return chartData.reduce((max, curr) => 
+      curr.probability > max.probability ? curr : max
+    );
+  }, [chartData]);
 
   return (
-    <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Crisis Timeline & Crash Probability</Typography>
-        <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>
-          Estimated probability of a ≥20% market drawdown over the next 5 years
+    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+      <RegimeBanner />
+
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+          CRASH TIMELINE & ESTIMATOR
         </Typography>
+
+        {/* Loading */}
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+            <CircularProgress sx={{ color: '#00d4ff' }} />
+          </Box>
+        )}
+
+        {/* Error */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Error loading crash estimator: {error.message}
+          </Alert>
+        )}
+
+        {/* Results */}
+        {data && !isLoading && (
+          <Grid container spacing={3}>
+            {/* Key Metrics */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  1-Year Crash Probability
+                </Typography>
+                <Typography
+                  variant="h2"
+                  sx={{
+                    my: 2,
+                    fontWeight: 'bold',
+                    color: data.total_crash_probability_1y > 0.5 ? '#ff1744' : data.total_crash_probability_1y > 0.3 ? '#ffc107' : '#00e676',
+                  }}
+                >
+                  {(data.total_crash_probability_1y * 100).toFixed(1)}%
+                </Typography>
+              </Paper>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  5-Year Crash Probability
+                </Typography>
+                <Typography
+                  variant="h2"
+                  sx={{
+                    my: 2,
+                    fontWeight: 'bold',
+                    color: '#ffc107',
+                  }}
+                >
+                  {(data.total_crash_probability_5y * 100).toFixed(1)}%
+                </Typography>
+              </Paper>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  Peak Risk Month
+                </Typography>
+                <Typography
+                  variant="h2"
+                  sx={{
+                    my: 2,
+                    fontWeight: 'bold',
+                    color: '#ff1744',
+                  }}
+                >
+                  {data.peak_risk_month || 'N/A'}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Months from now
+                </Typography>
+              </Paper>
+            </Grid>
+
+            {/* Contributing Factors */}
+            {data.contributing_factors && data.contributing_factors.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <WarningIcon sx={{ color: '#ffc107' }} />
+                    Contributing Risk Factors
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {data.contributing_factors.map((factor, idx) => (
+                      <Grid size={{ xs: 12, md: 6 }} key={idx}>
+                        <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                              {factor.factor}
+                            </Typography>
+                            <Chip
+                              label={`${(factor.weight * 100).toFixed(0)}%`}
+                              size="small"
+                              sx={{
+                                bgcolor: factor.weight > 0.3 ? '#ff1744' : factor.weight > 0.15 ? '#ffc107' : '#888',
+                                color: '#fff',
+                                fontWeight: 'bold',
+                              }}
+                            />
+                          </Box>
+                          <Box
+                            sx={{
+                              width: '100%',
+                              height: '8px',
+                              bgcolor: '#0a0a0a',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <Box
+                              sx={{
+                                width: `${factor.weight * 100}%`,
+                                height: '100%',
+                                bgcolor: factor.weight > 0.3 ? '#ff1744' : factor.weight > 0.15 ? '#ffc107' : '#888',
+                                transition: 'width 0.3s ease',
+                              }}
+                            />
+                          </Box>
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Paper>
+              </Grid>
+            )}
+
+            {/* Timeline Chart */}
+            {chartData.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>
+                    Crash Probability Timeline (Next 60 Months)
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorCrash" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ff1744" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#ff1744" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                      <XAxis
+                        dataKey="month"
+                        stroke="#666"
+                        tick={{ fill: '#666', fontSize: 12 }}
+                        label={{ value: 'Months from Now', position: 'insideBottom', offset: -5, fill: '#666' }}
+                      />
+                      <YAxis
+                        stroke="#666"
+                        tick={{ fill: '#666' }}
+                        domain={[0, 100]}
+                        tickFormatter={(val) => `${val}%`}
+                        label={{ value: 'Crash Probability', angle: -90, position: 'insideLeft', fill: '#666' }}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                        formatter={(value) => [`${value.toFixed(1)}%`, 'Crash Probability']}
+                        labelFormatter={(label) => `Month ${label}`}
+                      />
+                      <Legend />
+                      <Area
+                        type="monotone"
+                        dataKey="probability"
+                        stroke="#ff1744"
+                        strokeWidth={2}
+                        fillOpacity={1}
+                        fill="url(#colorCrash)"
+                        name="Crash Probability (%)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+
+                  {peakMonth && (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>Peak Risk:</strong> Month {peakMonth.month} shows the highest crash probability 
+                        at {peakMonth.probability.toFixed(1)}%. The model estimates elevated risk during this period 
+                        based on current market conditions and historical patterns.
+                      </Typography>
+                    </Box>
+                  )}
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+        )}
       </Box>
-
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="1-Year Crash Prob"
-            value={`${data?.total_crash_probability_1y || 0}%`}
-            color={(data?.total_crash_probability_1y || 0) > 25 ? colors.bad : (data?.total_crash_probability_1y || 0) > 15 ? colors.warning : colors.good}
-            subtitle="≥20% drawdown"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="5-Year Crash Prob"
-            value={`${data?.total_crash_probability_5y || 0}%`}
-            color={(data?.total_crash_probability_5y || 0) > 50 ? colors.bad : colors.warning}
-            subtitle="Cumulative"
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="Peak Risk Month"
-            value={`Month ${data?.peak_risk_month || '?'}`}
-            color={colors.info}
-            subtitle={`${data?.peak_risk_probability || 0}% marginal probability`}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="Regime"
-            value={(data?.regime || 'bull').toUpperCase()}
-            color={data?.regime === 'bull' ? colors.good : data?.regime === 'bear' ? colors.bad : colors.warning}
-            subtitle={`${data?.total_simulations?.toLocaleString() || 0} simulations`}
-          />
-        </Grid>
-
-        {/* Fan Chart - Cumulative Crash Probability */}
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 3 }}>Cumulative Crash Probability Over Time</Typography>
-            <ResponsiveContainer width="100%" height={350}>
-              <AreaChart data={cumulativeData}>
-                <defs>
-                  <linearGradient id="crashGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef5350" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#ef5350" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="date" stroke="#555" tick={{ fontSize: 11 }} interval={5} />
-                <YAxis stroke="#555" tick={{ fontSize: 11 }} domain={[0, 'auto']} unit="%" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }}
-                  formatter={(value, name) => [`${value.toFixed(1)}%`, name === 'probability' ? 'Cumulative' : 'This Month']}
-                />
-                <Area type="monotone" dataKey="probability" stroke="#ef5350" strokeWidth={2} fill="url(#crashGrad)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-        </Grid>
-
-        {/* Contributing Factors */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ p: 3, height: '100%' }}>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 2 }}>Contributing Factors</Typography>
-            {factors.map((f, i) => (
-              <Box key={i} sx={{ mb: 2, pb: 2, borderBottom: i < factors.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.88rem', fontWeight: 500, color: '#ccc' }}>{f.factor}</Typography>
-                  <Chip
-                    label={f.severity}
-                    size="small"
-                    sx={{
-                      height: 22,
-                      fontSize: '0.7rem',
-                      fontWeight: 600,
-                      bgcolor: f.severity === 'HIGH' ? 'rgba(239,83,80,0.15)' : f.severity === 'MEDIUM' ? 'rgba(255,167,38,0.15)' : 'rgba(76,175,80,0.15)',
-                      color: f.severity === 'HIGH' ? colors.bad : f.severity === 'MEDIUM' ? colors.warning : colors.good,
-                    }}
-                  />
-                </Box>
-                <Typography sx={{ fontSize: '0.78rem', color: colors.muted }}>{f.detail}</Typography>
-              </Box>
-            ))}
-          </Card>
-        </Grid>
-
-        {/* Crash Probability by Horizon */}
-        <Grid size={{ xs: 12 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 3 }}>Crash Probability by Time Horizon (≥20% Drawdown)</Typography>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={buckets}>
-                <XAxis dataKey="label" stroke="#555" />
-                <YAxis stroke="#555" unit="%" />
-                <Tooltip
-                  contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }}
-                  formatter={(v) => [`${v.toFixed(1)}%`, 'Probability']}
-                />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                  {buckets.map((b, i) => (
-                    <Cell key={i} fill={barColor(b.value)} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </Grid>
-      </Grid>
     </Box>
   );
 };

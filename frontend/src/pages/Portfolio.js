@@ -1,177 +1,236 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Box, Card, Typography, Grid, CircularProgress, Alert,
-  TextField, Button, IconButton, Dialog, DialogTitle,
-  DialogContent, DialogActions,
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Chip,
 } from '@mui/material';
-import { Delete as DeleteIcon, Add as AddIcon } from '@mui/icons-material';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { getPortfolio, addToPortfolio, removeFromPortfolio } from '../services/api';
-
-const colors = { good: '#4caf50', bad: '#ef5350', info: '#64b5f6', warning: '#ffa726', muted: '#888', accent: '#fff' };
-const SECTOR_COLORS = ['#64b5f6', '#4caf50', '#ffa726', '#ef5350', '#ab47bc', '#26c6da', '#8d6e63', '#78909c'];
+import Grid from '@mui/material/Grid2';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getPortfolio, removeFromPortfolio } from '../services/api';
+import RegimeBanner from '../components/RegimeBanner';
+import DeleteIcon from '@mui/icons-material/Delete';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
 const Portfolio = () => {
   const queryClient = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [form, setForm] = useState({ ticker: '', shares: '', purchase_price: '', purchase_date: '', notes: '' });
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['portfolio'],
     queryFn: getPortfolio,
+    staleTime: 1 * 60 * 1000, // 1 minute
   });
 
-  const addMutation = useMutation({
-    mutationFn: addToPortfolio,
+  const deleteMutation = useMutation({
+    mutationFn: removeFromPortfolio,
     onSuccess: () => {
       queryClient.invalidateQueries(['portfolio']);
-      setDialogOpen(false);
-      setForm({ ticker: '', shares: '', purchase_price: '', purchase_date: '', notes: '' });
     },
   });
 
-  const removeMutation = useMutation({
-    mutationFn: removeFromPortfolio,
-    onSuccess: () => queryClient.invalidateQueries(['portfolio']),
-  });
-
-  const handleAdd = () => {
-    if (!form.ticker || !form.shares) return;
-    addMutation.mutate({
-      ticker: form.ticker.toUpperCase(),
-      shares: parseFloat(form.shares),
-      purchase_price: form.purchase_price ? parseFloat(form.purchase_price) : null,
-      purchase_date: form.purchase_date || null,
-      notes: form.notes || null,
-    });
+  const handleDelete = (id) => {
+    if (window.confirm('Are you sure you want to remove this holding?')) {
+      deleteMutation.mutate(id);
+    }
   };
 
-  if (isLoading) return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress sx={{ color: '#fff' }} /></Box>;
-  if (error) return <Alert severity="error">Error: {error?.message}</Alert>;
-
-  const holdings = data?.holdings || [];
-  const totalValue = data?.total_value || 0;
-  const totalGain = data?.total_gain_loss || 0;
-  const totalGainPct = data?.total_gain_loss_pct || 0;
-
-  // Sector breakdown for pie chart
-  const sectorMap = {};
-  holdings.forEach(h => {
-    const s = h.sector || 'Other';
-    sectorMap[s] = (sectorMap[s] || 0) + h.market_value;
-  });
-  const sectorData = Object.entries(sectorMap).map(([name, value]) => ({ name, value: Math.round(value) }));
-
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Portfolio</Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>Track your holdings and projected returns</Typography>
-        </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogOpen(true)}>Add Stock</Button>
-      </Box>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+      <RegimeBanner />
 
-      {/* Summary Cards */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase' }}>Total Value</Typography>
-            <Typography sx={{ fontSize: '2rem', fontWeight: 700 }}>${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Typography>
-            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mt: 0.5 }}>{holdings.length} holdings</Typography>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase' }}>Total Gain/Loss</Typography>
-            <Typography sx={{ fontSize: '2rem', fontWeight: 700, color: totalGain >= 0 ? colors.good : colors.bad }}>
-              {totalGain >= 0 ? '+' : ''}${totalGain.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </Typography>
-            <Typography sx={{ fontSize: '0.82rem', color: totalGainPct >= 0 ? colors.good : colors.bad, mt: 0.5 }}>
-              {totalGainPct >= 0 ? '+' : ''}{totalGainPct.toFixed(1)}%
-            </Typography>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, sm: 4 }}>
-          <Card sx={{ p: 3 }}>
-            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase' }}>Sector Breakdown</Typography>
-            {sectorData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={120}>
-                <PieChart>
-                  <Pie data={sectorData} dataKey="value" cx="50%" cy="50%" innerRadius={30} outerRadius={50}>
-                    {sectorData.map((_, i) => <Cell key={i} fill={SECTOR_COLORS[i % SECTOR_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }} />
-                </PieChart>
-              </ResponsiveContainer>
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+          PORTFOLIO
+        </Typography>
+
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+            <CircularProgress sx={{ color: '#00d4ff' }} />
+          </Box>
+        )}
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Error loading portfolio: {error.message}
+          </Alert>
+        )}
+
+        {data && !isLoading && (
+          <>
+            {/* Summary Cards */}
+            <Grid container spacing={3} sx={{ mb: 3 }}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Total Value
+                  </Typography>
+                  <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: '#00d4ff' }}>
+                    ${data.total_value?.toFixed(2) || '0.00'}
+                  </Typography>
+                </Paper>
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Total Cost
+                  </Typography>
+                  <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold' }}>
+                    ${data.total_cost?.toFixed(2) || '0.00'}
+                  </Typography>
+                </Paper>
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Total Gain/Loss
+                  </Typography>
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      my: 1,
+                      fontWeight: 'bold',
+                      color: data.total_gain_loss >= 0 ? '#00e676' : '#ff1744',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 1,
+                    }}
+                  >
+                    {data.total_gain_loss >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />}
+                    {data.total_gain_loss >= 0 ? '+' : ''}
+                    ${data.total_gain_loss?.toFixed(2) || '0.00'}
+                  </Typography>
+                </Paper>
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Return %
+                  </Typography>
+                  <Typography
+                    variant="h3"
+                    sx={{
+                      my: 1,
+                      fontWeight: 'bold',
+                      color: data.total_gain_loss_pct >= 0 ? '#00e676' : '#ff1744',
+                    }}
+                  >
+                    {data.total_gain_loss_pct >= 0 ? '+' : ''}
+                    {data.total_gain_loss_pct?.toFixed(1)}%
+                  </Typography>
+                </Paper>
+              </Grid>
+            </Grid>
+
+            {/* Holdings Table */}
+            {data.holdings && data.holdings.length > 0 ? (
+              <Paper sx={{ bgcolor: '#111', border: '1px solid #333' }}>
+                <TableContainer>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }}>Ticker</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="right">Shares</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="right">Avg Cost</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="right">Current Price</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="right">Market Value</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="right">Gain/Loss</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="right">Return %</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="center">Sector</TableCell>
+                        <TableCell sx={{ color: '#888', fontWeight: 'bold' }} align="center">Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {data.holdings.map((holding) => (
+                        <TableRow key={holding.id} sx={{ '&:hover': { bgcolor: '#1a1a1a' } }}>
+                          <TableCell sx={{ color: '#fff', fontWeight: 'bold', fontSize: '1rem' }}>
+                            {holding.ticker}
+                          </TableCell>
+                          <TableCell align="right" sx={{ color: '#fff' }}>
+                            {holding.shares}
+                          </TableCell>
+                          <TableCell align="right" sx={{ color: '#888' }}>
+                            ${holding.purchase_price?.toFixed(2)}
+                          </TableCell>
+                          <TableCell align="right" sx={{ color: '#00d4ff', fontWeight: 'bold' }}>
+                            ${holding.current_price?.toFixed(2)}
+                          </TableCell>
+                          <TableCell align="right" sx={{ color: '#fff', fontWeight: 'bold' }}>
+                            ${holding.market_value?.toFixed(2)}
+                          </TableCell>
+                          <TableCell
+                            align="right"
+                            sx={{
+                              color: holding.gain_loss >= 0 ? '#00e676' : '#ff1744',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            {holding.gain_loss >= 0 ? '+' : ''}
+                            ${holding.gain_loss?.toFixed(2)}
+                          </TableCell>
+                          <TableCell
+                            align="right"
+                            sx={{
+                              color: holding.gain_loss_pct >= 0 ? '#00e676' : '#ff1744',
+                              fontWeight: 'bold',
+                            }}
+                          >
+                            {holding.gain_loss_pct >= 0 ? '+' : ''}
+                            {holding.gain_loss_pct?.toFixed(1)}%
+                          </TableCell>
+                          <TableCell align="center">
+                            <Chip
+                              label={holding.sector}
+                              size="small"
+                              sx={{
+                                bgcolor: '#1a1a1a',
+                                color: '#888',
+                                fontSize: '0.7rem',
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDelete(holding.id)}
+                              disabled={deleteMutation.isLoading}
+                              sx={{ color: '#ff1744' }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Paper>
             ) : (
-              <Typography sx={{ color: 'text.secondary', mt: 2, fontSize: '0.88rem' }}>No holdings yet</Typography>
+              <Paper sx={{ p: 5, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+                  Your portfolio is empty
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Go to Stock Tracker to add holdings
+                </Typography>
+              </Paper>
             )}
-          </Card>
-        </Grid>
-      </Grid>
-
-      {/* Holdings Table */}
-      <Card sx={{ p: 0, overflow: 'hidden' }}>
-        <Box sx={{ overflowX: 'auto' }}>
-          <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', '& th, & td': { px: 2, py: 1.5, textAlign: 'left', borderBottom: '1px solid rgba(255,255,255,0.04)' } }}>
-            <thead>
-              <tr>
-                {['Ticker', 'Shares', 'Avg Cost', 'Current', 'Value', 'Gain/Loss', '%', ''].map(h => (
-                  <Box component="th" key={h} sx={{ fontSize: '0.75rem', color: 'text.secondary', textTransform: 'uppercase', fontWeight: 600 }}>{h}</Box>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {holdings.length === 0 ? (
-                <tr><Box component="td" colSpan={8} sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>No holdings. Click "Add Stock" to get started.</Box></tr>
-              ) : (
-                holdings.map(h => (
-                  <tr key={h.id}>
-                    <Box component="td" sx={{ fontWeight: 600 }}>{h.ticker}</Box>
-                    <Box component="td">{h.shares}</Box>
-                    <Box component="td">${h.purchase_price.toFixed(2)}</Box>
-                    <Box component="td">${h.current_price.toFixed(2)}</Box>
-                    <Box component="td">${h.market_value.toLocaleString(undefined, { minimumFractionDigits: 2 })}</Box>
-                    <Box component="td" sx={{ color: h.gain_loss >= 0 ? colors.good : colors.bad, fontWeight: 500 }}>
-                      {h.gain_loss >= 0 ? '+' : ''}${h.gain_loss.toFixed(2)}
-                    </Box>
-                    <Box component="td" sx={{ color: h.gain_loss_pct >= 0 ? colors.good : colors.bad, fontWeight: 500 }}>
-                      {h.gain_loss_pct >= 0 ? '+' : ''}{h.gain_loss_pct.toFixed(1)}%
-                    </Box>
-                    <Box component="td">
-                      <IconButton size="small" onClick={() => removeMutation.mutate(h.id)} sx={{ color: colors.muted, '&:hover': { color: colors.bad } }}>
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </Box>
-        </Box>
-      </Card>
-
-      {/* Add Stock Dialog */}
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} PaperProps={{ sx: { bgcolor: '#1a1a1a', borderRadius: 3, minWidth: 400 } }}>
-        <DialogTitle sx={{ color: '#e8e8e8' }}>Add Stock to Portfolio</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <TextField label="Ticker" value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value })} size="small" required />
-            <TextField label="Shares" type="number" value={form.shares} onChange={e => setForm({ ...form, shares: e.target.value })} size="small" required />
-            <TextField label="Purchase Price (optional - auto-fetched)" type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: e.target.value })} size="small" />
-            <TextField label="Purchase Date" type="date" value={form.purchase_date} onChange={e => setForm({ ...form, purchase_date: e.target.value })} size="small" InputLabelProps={{ shrink: true }} />
-            <TextField label="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} size="small" multiline rows={2} />
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)} sx={{ color: '#888' }}>Cancel</Button>
-          <Button variant="contained" onClick={handleAdd} disabled={!form.ticker || !form.shares || addMutation.isLoading}>
-            {addMutation.isLoading ? 'Adding...' : 'Add'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </>
+        )}
+      </Box>
     </Box>
   );
 };

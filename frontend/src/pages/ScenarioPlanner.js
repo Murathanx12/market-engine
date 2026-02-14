@@ -1,182 +1,409 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Card, Typography, Grid, CircularProgress, Alert,
-  TextField, Button, ToggleButton, ToggleButtonGroup,
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  TextField,
+  Button,
+  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
 } from '@mui/material';
-import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  Line,
-} from 'recharts';
+import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { useQuery } from '@tanstack/react-query';
 import { runScenario } from '../services/api';
-
-const colors = { good: '#4caf50', bad: '#ef5350', info: '#64b5f6', warning: '#ffa726', muted: '#888', accent: '#fff' };
-
-const SCENARIOS = {
-  soft_landing: { label: 'Soft Landing', color: colors.good },
-  fed_pivot: { label: 'Fed Pivot', color: colors.info },
-  trade_war: { label: 'Trade War', color: colors.warning },
-  taiwan_conflict: { label: 'Taiwan Conflict', color: colors.bad },
-  ai_bubble_burst: { label: 'AI Bubble Burst', color: '#ab47bc' },
-};
-
-function MetricCard({ title, value, subtitle, color = colors.accent }) {
-  return (
-    <Card sx={{ p: 3, height: '100%' }}>
-      <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</Typography>
-      <Typography sx={{ fontSize: '2rem', fontWeight: 700, color, lineHeight: 1.2 }}>{value}</Typography>
-      {subtitle && <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mt: 0.5 }}>{subtitle}</Typography>}
-    </Card>
-  );
-}
+import RegimeBanner from '../components/RegimeBanner';
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 const ScenarioPlanner = () => {
   const [ticker, setTicker] = useState('SPY');
-  const [inputTicker, setInputTicker] = useState('SPY');
-  const [scenario, setScenario] = useState('soft_landing');
+  const [scenario, setScenario] = useState('taiwan_conflict');
+  const [runTrigger, setRunTrigger] = useState(0);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['scenario', ticker, scenario],
-    queryFn: () => runScenario(ticker, scenario),
-    staleTime: 300000,
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setTicker(inputTicker.toUpperCase());
+  const scenarios = {
+    taiwan_conflict: {
+      name: 'Taiwan Conflict',
+      description: 'China invades Taiwan, causing global supply chain disruption',
+      color: '#ff1744',
+    },
+    fed_pivot: {
+      name: 'Fed Pivot',
+      description: 'Fed cuts rates aggressively due to recession fears',
+      color: '#00e676',
+    },
+    ai_bubble_burst: {
+      name: 'AI Bubble Burst',
+      description: 'AI hype collapses, tech sector crashes',
+      color: '#ff5722',
+    },
+    trade_war: {
+      name: 'Trade War Escalation',
+      description: 'Escalating US-China tariffs hurt global trade',
+      color: '#ffc107',
+    },
+    soft_landing: {
+      name: 'Soft Landing',
+      description: 'Fed engineers soft landing, economy grows steadily',
+      color: '#00d4ff',
+    },
   };
 
-  // Build projection chart data
-  const projData = [];
-  if (data?.projection) {
-    const proj = data.projection;
-    const dates = proj.dates || [];
-    const means = proj.mean || [];
-    const p05s = proj.p05 || [];
-    const p95s = proj.p95 || [];
-    for (let i = 0; i < dates.length; i++) {
-      projData.push({
-        date: dates[i]?.slice(5) || `Day ${i}`,
-        mean: means[i] || 0,
-        p05: p05s[i] || 0,
-        p95: p95s[i] || 0,
-      });
-    }
-  }
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['scenario', ticker, scenario, runTrigger],
+    queryFn: () => runScenario(ticker, scenario),
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    enabled: runTrigger > 0, // Only run when triggered
+  });
 
-  const expectedReturn = data?.expected_return || 0;
-  const scenarioColor = SCENARIOS[scenario]?.color || colors.accent;
+  const handleRun = () => {
+    setRunTrigger(prev => prev + 1);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleRun();
+    }
+  };
+
+  // Transform projection data for chart
+  const chartData = React.useMemo(() => {
+    if (!data?.projection?.dates) return [];
+    
+    return data.projection.dates.map((date, idx) => ({
+      date,
+      mean: data.projection.mean[idx],
+      p05: data.projection.p05[idx],
+      p95: data.projection.p95[idx],
+    }));
+  }, [data]);
 
   return (
-    <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Scenario Planner</Typography>
-        <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>
-          Simulate geopolitical and economic scenarios with Monte Carlo
+    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+      <RegimeBanner />
+
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+          SCENARIO PLANNER
         </Typography>
-      </Box>
 
-      {/* Controls */}
-      <Card sx={{ p: 2.5, mb: 3 }}>
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: { md: 'center' } }}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 12 }}>
-            <TextField placeholder="Ticker" value={inputTicker} onChange={(e) => setInputTicker(e.target.value)} size="small" sx={{ width: 140 }} />
-            <Button type="submit" variant="contained" sx={{ px: 3 }}>Apply</Button>
-          </form>
-          <ToggleButtonGroup
-            value={scenario}
-            exclusive
-            onChange={(_, val) => val && setScenario(val)}
-            size="small"
-            sx={{
-              flexWrap: 'wrap',
-              '& .MuiToggleButton-root': {
-                color: '#888', borderColor: 'rgba(255,255,255,0.1)', px: 1.5, fontSize: '0.78rem',
-                '&.Mui-selected': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
-              },
-            }}
-          >
-            {Object.entries(SCENARIOS).map(([key, { label }]) => (
-              <ToggleButton key={key} value={key}>{label}</ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-        </Box>
-      </Card>
-
-      {isLoading && <Box display="flex" justifyContent="center" py={6}><CircularProgress sx={{ color: '#fff' }} /></Box>}
-      {error && <Alert severity="error" sx={{ mb: 3 }}>Error: {error?.message}</Alert>}
-
-      {data && (
-        <Grid container spacing={3}>
-          {/* Scenario Description */}
-          <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 3, borderLeft: `4px solid ${scenarioColor}` }}>
-              <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 0.5 }}>{SCENARIOS[scenario]?.label || scenario}</Typography>
-              <Typography sx={{ color: 'text.secondary', fontSize: '0.88rem' }}>{data.description}</Typography>
-            </Card>
-          </Grid>
-
-          {/* Metrics */}
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <MetricCard title="Current Price" value={`$${(data.current_price || 0).toFixed(2)}`} subtitle={ticker} />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <MetricCard
-              title="Expected Price"
-              value={`$${(data.expected_price || 0).toFixed(2)}`}
-              color={expectedReturn >= 0 ? colors.good : colors.bad}
-              subtitle={`${expectedReturn >= 0 ? '+' : ''}${(expectedReturn * 100).toFixed(1)}% return`}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <MetricCard
-              title="95% Range"
-              value={`$${(data.confidence_95_low || 0).toFixed(0)} – $${(data.confidence_95_high || 0).toFixed(0)}`}
-              color={colors.info}
-              subtitle={`Duration: ${data.duration_days || 0} days`}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-            <MetricCard
-              title="Scenario Probability"
-              value={`${((data.probability || 0) * 100).toFixed(0)}%`}
-              color={colors.warning}
-              subtitle="Estimated likelihood"
-            />
-          </Grid>
-
-          {/* Projection Fan Chart */}
-          {projData.length > 0 && (
-            <Grid size={{ xs: 12 }}>
-              <Card sx={{ p: 3 }}>
-                <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 1 }}>Monte Carlo Projection – {SCENARIOS[scenario]?.label}</Typography>
-                <Typography sx={{ color: 'text.secondary', fontSize: '0.82rem', mb: 3 }}>
-                  Shaded: 90% confidence interval · Line: Expected path
-                </Typography>
-                <ResponsiveContainer width="100%" height={350}>
-                  <AreaChart data={projData}>
-                    <defs>
-                      <linearGradient id="scenarioGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={scenarioColor} stopOpacity={0.2} />
-                        <stop offset="95%" stopColor={scenarioColor} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <XAxis dataKey="date" stroke="#555" tick={{ fontSize: 10 }} interval={Math.max(1, Math.floor(projData.length / 10))} />
-                    <YAxis stroke="#555" tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }}
-                      formatter={(v, name) => [`$${Number(v).toFixed(2)}`, name === 'mean' ? 'Expected' : name.toUpperCase()]}
-                    />
-                    <Area type="monotone" dataKey="p95" stroke="none" fill="url(#scenarioGrad)" />
-                    <Area type="monotone" dataKey="p05" stroke="none" fill="transparent" />
-                    <Line type="monotone" dataKey="mean" stroke={scenarioColor} strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </Card>
+        {/* Controls */}
+        <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
+          <Grid container spacing={3}>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <TextField
+                fullWidth
+                label="Ticker Symbol"
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                onKeyPress={handleKeyPress}
+                placeholder="e.g., SPY, AAPL"
+                variant="outlined"
+                sx={{
+                  '& .MuiOutlinedInput-root': {
+                    color: '#fff',
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+                  },
+                  '& .MuiInputLabel-root': { color: '#888' },
+                }}
+              />
             </Grid>
+
+            <Grid size={{ xs: 12, md: 5 }}>
+              <FormControl fullWidth>
+                <InputLabel sx={{ color: '#888' }}>Scenario</InputLabel>
+                <Select
+                  value={scenario}
+                  onChange={(e) => setScenario(e.target.value)}
+                  label="Scenario"
+                  sx={{
+                    color: '#fff',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#00d4ff' },
+                  }}
+                >
+                  {Object.entries(scenarios).map(([key, s]) => (
+                    <MenuItem key={key} value={key}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box
+                          sx={{
+                            width: 12,
+                            height: 12,
+                            borderRadius: '50%',
+                            bgcolor: s.color,
+                          }}
+                        />
+                        {s.name}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Button
+                fullWidth
+                variant="contained"
+                startIcon={<PlayArrowIcon />}
+                onClick={handleRun}
+                disabled={isLoading}
+                sx={{
+                  bgcolor: '#00d4ff',
+                  color: '#000',
+                  fontWeight: 'bold',
+                  height: '56px',
+                  '&:hover': { bgcolor: '#00b8e6' },
+                }}
+              >
+                {isLoading ? <CircularProgress size={24} /> : 'RUN SCENARIO'}
+              </Button>
+            </Grid>
+          </Grid>
+
+          {/* Scenario Description */}
+          {scenario && scenarios[scenario] && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ color: '#ccc' }}>
+                <strong>{scenarios[scenario].name}:</strong> {scenarios[scenario].description}
+              </Typography>
+            </Box>
           )}
-        </Grid>
-      )}
+        </Paper>
+
+        {/* Loading */}
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+            <CircularProgress sx={{ color: '#00d4ff' }} />
+          </Box>
+        )}
+
+        {/* Error */}
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            Error running scenario: {error.message}
+          </Alert>
+        )}
+
+        {/* Results */}
+        {data && !isLoading && (
+          <Grid container spacing={3}>
+            {/* Key Metrics */}
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  Current Price
+                </Typography>
+                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#fff' }}>
+                  ${data.current_price?.toFixed(2) || '0.00'}
+                </Typography>
+              </Paper>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  Expected Price
+                </Typography>
+                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#00d4ff' }}>
+                  ${data.expected_price?.toFixed(2) || '0.00'}
+                </Typography>
+              </Paper>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  Expected Return
+                </Typography>
+                <Typography
+                  variant="h4"
+                  sx={{
+                    my: 1,
+                    fontWeight: 'bold',
+                    color: data.expected_return >= 0 ? '#00e676' : '#ff1744',
+                  }}
+                >
+                  {data.expected_return >= 0 ? '+' : ''}
+                  {(data.expected_return * 100).toFixed(1)}%
+                </Typography>
+              </Paper>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 3 }}>
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                <Typography variant="overline" color="text.secondary">
+                  Scenario Probability
+                </Typography>
+                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#ffc107' }}>
+                  {(data.probability * 100).toFixed(0)}%
+                </Typography>
+              </Paper>
+            </Grid>
+
+            {/* Confidence Intervals */}
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  95% Confidence Interval
+                </Typography>
+                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Pessimistic (5th percentile)
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ff1744' }}>
+                    ${data.confidence_95_low?.toFixed(2) || '0.00'}
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Optimistic (95th percentile)
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00e676' }}>
+                    ${data.confidence_95_high?.toFixed(2) || '0.00'}
+                  </Typography>
+                </Box>
+              </Paper>
+            </Grid>
+
+            <Grid size={{ xs: 12, md: 6 }}>
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  Scenario Details
+                </Typography>
+                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Duration
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                    {data.duration_days} days
+                  </Typography>
+                </Box>
+                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Median Outcome
+                  </Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff' }}>
+                    ${data.median_price?.toFixed(2) || '0.00'}
+                  </Typography>
+                </Box>
+              </Paper>
+            </Grid>
+
+            {/* Projection Chart */}
+            {chartData.length > 0 && (
+              <Grid size={{ xs: 12 }}>
+                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                  <Typography variant="h6" sx={{ mb: 2 }}>
+                    Price Projection - {scenarios[scenario]?.name}
+                  </Typography>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <AreaChart data={chartData}>
+                      <defs>
+                        <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        stroke="#666"
+                        tick={{ fill: '#666', fontSize: 11 }}
+                        tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      />
+                      <YAxis
+                        stroke="#666"
+                        tick={{ fill: '#666' }}
+                        domain={['auto', 'auto']}
+                        tickFormatter={(val) => `$${val.toFixed(0)}`}
+                      />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                        formatter={(value, name) => {
+                          const labels = {
+                            mean: 'Expected Price',
+                            p05: '5th Percentile',
+                            p95: '95th Percentile',
+                          };
+                          return [`$${value.toFixed(2)}`, labels[name] || name];
+                        }}
+                        labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                      />
+                      <Legend />
+                      
+                      {/* Confidence Band */}
+                      <Area
+                        type="monotone"
+                        dataKey="p95"
+                        stroke="none"
+                        fill="url(#colorConfidence)"
+                        fillOpacity={1}
+                        name="95th Percentile"
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="p05"
+                        stroke="none"
+                        fill="#000"
+                        fillOpacity={1}
+                        name="5th Percentile"
+                      />
+                      
+                      {/* Mean Line */}
+                      <Line
+                        type="monotone"
+                        dataKey="mean"
+                        stroke="#00d4ff"
+                        strokeWidth={3}
+                        dot={false}
+                        name="Expected Price"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                  
+                  <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      The shaded area represents the 90% confidence interval. 
+                      The cyan line shows the expected price path if this scenario unfolds.
+                    </Typography>
+                  </Box>
+                </Paper>
+              </Grid>
+            )}
+          </Grid>
+        )}
+
+        {/* Initial State */}
+        {!data && !isLoading && runTrigger === 0 && (
+          <Paper sx={{ p: 5, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+            <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+              Ready to run scenario analysis
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Select a ticker and scenario, then click "RUN SCENARIO"
+            </Typography>
+          </Paper>
+        )}
+      </Box>
     </Box>
   );
 };

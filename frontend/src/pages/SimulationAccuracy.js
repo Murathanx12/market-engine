@@ -1,199 +1,487 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import {
-  Box, Card, Typography, Grid, Alert, Button,
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  ToggleButtonGroup,
+  ToggleButton,
+  Chip,
 } from '@mui/material';
+import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { useQuery } from '@tanstack/react-query';
+import { getAccuracyHistory, getBacktest } from '../services/api';
+import RegimeBanner from '../components/RegimeBanner';
 import {
-  Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  Area, ComposedChart, BarChart, Bar, Cell,
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
 } from 'recharts';
-import { getBacktest, getAccuracyHistory } from '../services/api';
-
-const colors = { good: '#4caf50', bad: '#ef5350', info: '#64b5f6', warning: '#ffa726', muted: '#888', accent: '#fff' };
-
-function MetricCard({ title, value, subtitle, color = colors.accent }) {
-  return (
-    <Card sx={{ p: 3, height: '100%' }}>
-      <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{title}</Typography>
-      <Typography sx={{ fontSize: '2.2rem', fontWeight: 700, color, lineHeight: 1.2 }}>{value}</Typography>
-      {subtitle && <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mt: 0.5 }}>{subtitle}</Typography>}
-    </Card>
-  );
-}
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import TimelineIcon from '@mui/icons-material/Timeline';
 
 const SimulationAccuracy = () => {
-  const [running, setRunning] = useState(false);
+  const [view, setView] = useState('monthly'); // 'monthly' or 'backtest'
+  const [backtestYear, setBacktestYear] = useState(2010);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['backtest'],
-    queryFn: () => getBacktest(2005),
-    staleTime: 3600000, // 1 hour cache
-    enabled: false, // Don't auto-run - expensive
-  });
-
-  // Also try the lightweight accuracy history
-  const { data: histData } = useQuery({
-    queryKey: ['accuracy-history'],
+  // Fetch monthly accuracy
+  const { data: accuracyData, isLoading: accuracyLoading, error: accuracyError } = useQuery({
+    queryKey: ['accuracyHistory'],
     queryFn: getAccuracyHistory,
-    staleTime: 300000,
+    staleTime: 60 * 60 * 1000, // 1 hour
   });
 
-  const handleRunBacktest = async () => {
-    setRunning(true);
-    try {
-      await refetch();
-    } finally {
-      setRunning(false);
+  // Fetch backtest data (only when needed)
+  const { data: backtestData, isLoading: backtestLoading, error: backtestError } = useQuery({
+    queryKey: ['backtest', backtestYear],
+    queryFn: () => getBacktest(backtestYear),
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours - this data doesn't change
+    enabled: view === 'backtest', // Only fetch when viewing backtest
+  });
+
+  const handleViewChange = (event, newView) => {
+    if (newView !== null) {
+      setView(newView);
     }
   };
 
-  const metrics = data?.metrics || {};
-  const predictions = data?.predictions || [];
+  // Calculate aggregate stats from accuracy data
+  const aggregateStats = React.useMemo(() => {
+    if (!accuracyData || !Array.isArray(accuracyData)) return null;
 
-  // Format predictions for chart
-  const chartData = predictions.map(p => ({
-    date: p.date?.slice(0, 7) || '',
-    actual: Math.round(p.actual || 0),
-    predicted: Math.round(p.predicted_mean || 0),
-    p05: Math.round(p.predicted_p05 || 0),
-    p95: Math.round(p.predicted_p95 || 0),
-  }));
+    const totalPredictions = accuracyData.reduce((sum, d) => sum + (d.predictions || 0), 0);
+    const avgAccuracy = accuracyData.reduce((sum, d) => sum + (d.accuracy || 0), 0) / accuracyData.length;
+    const minAccuracy = Math.min(...accuracyData.map(d => d.accuracy || 0));
+    const maxAccuracy = Math.max(...accuracyData.map(d => d.accuracy || 0));
 
-  // Error distribution
-  const errorData = predictions.map(p => ({
-    date: p.date?.slice(0, 7) || '',
-    error: p.error_pct || 0,
-    within: p.within_90_band,
-  }));
-
-  // Legacy accuracy data fallback
-  // Legacy accuracy data available via histData if needed
+    return {
+      totalPredictions,
+      avgAccuracy,
+      minAccuracy,
+      maxAccuracy,
+    };
+  }, [accuracyData]);
 
   return (
-    <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Box>
-          <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Model Accuracy & Backtest</Typography>
-          <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>
-            Walk-forward validation on S&P 500 (2005–present)
+    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+      <RegimeBanner />
+
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+          ACCURACY TRACKING
+        </Typography>
+
+        {/* View Selector */}
+        <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Select View
           </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          onClick={handleRunBacktest}
-          disabled={isLoading || running}
-          sx={{ px: 3 }}
-        >
-          {isLoading || running ? 'Running Backtest...' : 'Run Backtest'}
-        </Button>
+          <ToggleButtonGroup
+            value={view}
+            exclusive
+            onChange={handleViewChange}
+            sx={{
+              '& .MuiToggleButton-root': {
+                color: '#888',
+                borderColor: '#444',
+                '&.Mui-selected': {
+                  bgcolor: '#00d4ff',
+                  color: '#000',
+                  fontWeight: 'bold',
+                  '&:hover': { bgcolor: '#00b8e6' },
+                },
+              },
+            }}
+          >
+            <ToggleButton value="monthly">
+              <CheckCircleIcon sx={{ mr: 1 }} />
+              Monthly Accuracy
+            </ToggleButton>
+            <ToggleButton value="backtest">
+              <TimelineIcon sx={{ mr: 1 }} />
+              Historical Backtest (2000-Present)
+            </ToggleButton>
+          </ToggleButtonGroup>
+
+          {view === 'backtest' && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                Start Year
+              </Typography>
+              <ToggleButtonGroup
+                value={backtestYear}
+                exclusive
+                onChange={(e, val) => val && setBacktestYear(val)}
+                size="small"
+                sx={{
+                  '& .MuiToggleButton-root': {
+                    color: '#888',
+                    borderColor: '#444',
+                    fontSize: '0.75rem',
+                    '&.Mui-selected': {
+                      bgcolor: '#00d4ff',
+                      color: '#000',
+                      fontWeight: 'bold',
+                    },
+                  },
+                }}
+              >
+                <ToggleButton value={2000}>2000</ToggleButton>
+                <ToggleButton value={2005}>2005</ToggleButton>
+                <ToggleButton value={2010}>2010</ToggleButton>
+                <ToggleButton value={2015}>2015</ToggleButton>
+                <ToggleButton value={2020}>2020</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+          )}
+        </Paper>
+
+        {/* MONTHLY ACCURACY VIEW */}
+        {view === 'monthly' && (
+          <>
+            {/* Loading */}
+            {accuracyLoading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+                <CircularProgress sx={{ color: '#00d4ff' }} />
+              </Box>
+            )}
+
+            {/* Error */}
+            {accuracyError && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Error loading accuracy data: {accuracyError.message}
+              </Alert>
+            )}
+
+            {/* Stats Cards */}
+            {aggregateStats && (
+              <Grid container spacing={3} sx={{ mb: 3 }}>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                    <Typography variant="overline" color="text.secondary">
+                      Average Accuracy
+                    </Typography>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: '#00e676' }}>
+                      {aggregateStats.avgAccuracy.toFixed(1)}%
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                    <Typography variant="overline" color="text.secondary">
+                      Best Month
+                    </Typography>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: '#00d4ff' }}>
+                      {aggregateStats.maxAccuracy.toFixed(1)}%
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                    <Typography variant="overline" color="text.secondary">
+                      Worst Month
+                    </Typography>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: '#ff1744' }}>
+                      {aggregateStats.minAccuracy.toFixed(1)}%
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                    <Typography variant="overline" color="text.secondary">
+                      Total Predictions
+                    </Typography>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold' }}>
+                      {aggregateStats.totalPredictions}
+                    </Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+            )}
+
+            {/* Accuracy Chart */}
+            {accuracyData && Array.isArray(accuracyData) && (
+              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  Monthly Accuracy Trend
+                </Typography>
+                <ResponsiveContainer width="100%" height={400}>
+                  <LineChart data={[...accuracyData].reverse()}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      stroke="#666"
+                      tick={{ fill: '#666', fontSize: 12 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                    />
+                    <YAxis
+                      stroke="#666"
+                      tick={{ fill: '#666' }}
+                      domain={[0, 100]}
+                      tickFormatter={(val) => `${val}%`}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                      labelStyle={{ color: '#888' }}
+                      formatter={(value) => [`${value.toFixed(1)}%`, 'Accuracy']}
+                    />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="accuracy"
+                      stroke="#00e676"
+                      strokeWidth={3}
+                      dot={{ fill: '#00e676', r: 4 }}
+                      activeDot={{ r: 6 }}
+                      name="Accuracy %"
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </Paper>
+            )}
+          </>
+        )}
+
+        {/* BACKTEST VIEW */}
+        {view === 'backtest' && (
+          <>
+            {/* Loading */}
+            {backtestLoading && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 10 }}>
+                <CircularProgress sx={{ color: '#00d4ff', mb: 2 }} size={60} />
+                <Typography variant="body1" color="text.secondary">
+                  Running walk-forward backtest...
+                </Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                  This may take 30-60 seconds
+                </Typography>
+              </Box>
+            )}
+
+            {/* Error */}
+            {backtestError && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                Error running backtest: {backtestError.message}
+                <br />
+                <Typography variant="caption">
+                  This computation is intensive. Try a later start year.
+                </Typography>
+              </Alert>
+            )}
+
+            {/* Backtest Results */}
+            {backtestData && !backtestLoading && (
+              <>
+                {/* Stats */}
+                <Grid container spacing={3} sx={{ mb: 3 }}>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                      <Typography variant="overline" color="text.secondary">
+                        RMSE
+                      </Typography>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#00d4ff' }}>
+                        {backtestData.rmse?.toFixed(2) || 'N/A'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Root Mean Square Error
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                      <Typography variant="overline" color="text.secondary">
+                        Directional Accuracy
+                      </Typography>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#00e676' }}>
+                        {backtestData.directional_accuracy?.toFixed(1) || 'N/A'}%
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Predicted direction correctly
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                      <Typography variant="overline" color="text.secondary">
+                        MAE
+                      </Typography>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold' }}>
+                        {backtestData.mae?.toFixed(2) || 'N/A'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Mean Absolute Error
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+                      <Typography variant="overline" color="text.secondary">
+                        Data Points
+                      </Typography>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold' }}>
+                        {backtestData.data_points || 'N/A'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Predictions evaluated
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+
+                {/* The Big Chart: Predicted vs Actual */}
+                {backtestData.backtest_data && Array.isArray(backtestData.backtest_data) && (
+                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', mb: 3 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                      <Typography variant="h6">
+                        Model Predictions vs Market Reality ({backtestYear}-Present)
+                      </Typography>
+                      <Chip
+                        label={`${backtestData.backtest_data.length} predictions`}
+                        size="small"
+                        sx={{ bgcolor: '#1a1a1a', color: '#888' }}
+                      />
+                    </Box>
+                    <ResponsiveContainer width="100%" height={500}>
+                      <AreaChart data={backtestData.backtest_data}>
+                        <defs>
+                          <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#666"
+                          tick={{ fill: '#666', fontSize: 11 }}
+                          minTickGap={50}
+                          tickFormatter={(value) => {
+                            const date = new Date(value);
+                            return date.getFullYear().toString();
+                          }}
+                        />
+                        <YAxis
+                          stroke="#666"
+                          tick={{ fill: '#666' }}
+                          domain={['auto', 'auto']}
+                          tickFormatter={(val) => `$${val.toFixed(0)}`}
+                        />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                          labelStyle={{ color: '#888' }}
+                          formatter={(value, name) => [
+                            `$${value.toFixed(2)}`,
+                            name === 'actual' ? 'Market Reality' : 'Engine Prediction'
+                          ]}
+                          labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                        />
+                        <Legend
+                          verticalAlign="top"
+                          align="right"
+                          height={36}
+                          wrapperStyle={{ color: '#fff' }}
+                        />
+                        
+                        {/* Actual Price - The Truth */}
+                        <Area
+                          name="Market Reality (S&P 500)"
+                          type="monotone"
+                          dataKey="actual"
+                          stroke="#ffffff"
+                          strokeWidth={2}
+                          fill="transparent"
+                          dot={false}
+                        />
+                        
+                        {/* Predicted Price - Our Model */}
+                        <Area
+                          name="Engine Prediction"
+                          type="monotone"
+                          dataKey="predicted"
+                          stroke="#00d4ff"
+                          strokeWidth={2}
+                          fillOpacity={1}
+                          fill="url(#colorPredicted)"
+                          dot={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+
+                    <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>How to read this chart:</strong> The white line shows actual S&P 500 prices. 
+                        The cyan area shows what our model would have predicted at each point in history using 
+                        only data available at that time. Larger gaps indicate periods where the model struggled 
+                        (often during major market crashes like 2008 and 2020).
+                      </Typography>
+                    </Box>
+                  </Paper>
+                )}
+
+                {/* Error Over Time */}
+                {backtestData.backtest_data && Array.isArray(backtestData.backtest_data) && (
+                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                    <Typography variant="h6" sx={{ mb: 2 }}>
+                      Prediction Error Over Time
+                    </Typography>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart 
+                        data={backtestData.backtest_data.map(d => ({
+                          ...d,
+                          error: Math.abs(d.predicted - d.actual)
+                        }))}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                        <XAxis
+                          dataKey="date"
+                          stroke="#666"
+                          tick={{ fill: '#666', fontSize: 11 }}
+                          minTickGap={50}
+                          tickFormatter={(value) => new Date(value).getFullYear().toString()}
+                        />
+                        <YAxis
+                          stroke="#666"
+                          tick={{ fill: '#666' }}
+                          tickFormatter={(val) => `$${val.toFixed(0)}`}
+                        />
+                        <Tooltip
+                          contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                          formatter={(value) => [`$${value.toFixed(2)}`, 'Absolute Error']}
+                          labelFormatter={(label) => new Date(label).toLocaleDateString()}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="error"
+                          stroke="#ff1744"
+                          strokeWidth={2}
+                          dot={false}
+                          name="Prediction Error"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                    <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        This shows how far off our predictions were. Spikes indicate major market events 
+                        that the model failed to predict accurately (e.g., 2008 financial crisis, 2020 COVID crash).
+                      </Typography>
+                    </Box>
+                  </Paper>
+                )}
+              </>
+            )}
+          </>
+        )}
       </Box>
-
-      {error && <Alert severity="error" sx={{ mb: 3 }}>Backtest error: {error?.message}</Alert>}
-
-      {/* Metrics */}
-      <Grid container spacing={3}>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="MAPE"
-            value={metrics.mape ? `${metrics.mape}%` : '—'}
-            subtitle="Mean Absolute % Error"
-            color={metrics.mape && metrics.mape < 15 ? colors.good : colors.warning}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="90% Coverage"
-            value={metrics.coverage_90 ? `${metrics.coverage_90}%` : '—'}
-            subtitle="Actual within prediction band"
-            color={metrics.coverage_90 && metrics.coverage_90 > 85 ? colors.good : colors.warning}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="Predictions"
-            value={metrics.n_predictions || '—'}
-            color={colors.info}
-            subtitle={data?.period || 'Run backtest to see results'}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <MetricCard
-            title="Mean Error"
-            value={metrics.mean_error_pct != null ? `${metrics.mean_error_pct}%` : '—'}
-            color={colors.muted}
-            subtitle={metrics.rmse_pct ? `RMSE: ${metrics.rmse_pct}%` : ''}
-          />
-        </Grid>
-
-        {/* Actual vs Predicted Chart */}
-        {chartData.length > 0 && (
-          <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 3 }}>
-              <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 1 }}>Backtest: Actual vs Predicted S&P 500</Typography>
-              <Typography sx={{ color: 'text.secondary', fontSize: '0.82rem', mb: 3 }}>
-                Blue shading: 90% prediction interval · White line: Prediction · Cyan: Actual
-              </Typography>
-              <ResponsiveContainer width="100%" height={350}>
-                <ComposedChart data={chartData}>
-                  <defs>
-                    <linearGradient id="bandGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#64b5f6" stopOpacity={0.15} />
-                      <stop offset="95%" stopColor="#64b5f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="date" stroke="#555" tick={{ fontSize: 10 }} interval={Math.max(1, Math.floor(chartData.length / 10))} />
-                  <YAxis stroke="#555" tick={{ fontSize: 11 }} domain={['auto', 'auto']} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }}
-                    formatter={(v, name) => [`$${Number(v).toLocaleString()}`, name]}
-                  />
-                  <Area type="monotone" dataKey="p95" stroke="none" fill="url(#bandGrad)" />
-                  <Area type="monotone" dataKey="p05" stroke="none" fill="transparent" />
-                  <Line type="monotone" dataKey="actual" stroke="#26c6da" strokeWidth={2} dot={false} name="Actual" />
-                  <Line type="monotone" dataKey="predicted" stroke="#ffffff" strokeWidth={1.5} dot={false} strokeDasharray="5 5" name="Predicted" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </Card>
-          </Grid>
-        )}
-
-        {/* Error Distribution */}
-        {errorData.length > 0 && (
-          <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 3 }}>
-              <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 3 }}>Prediction Error by Period (%)</Typography>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={errorData}>
-                  <XAxis dataKey="date" stroke="#555" tick={{ fontSize: 10 }} interval={Math.max(1, Math.floor(errorData.length / 10))} />
-                  <YAxis stroke="#555" unit="%" />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#e8e8e8' }}
-                    formatter={(v) => [`${Number(v).toFixed(1)}%`, 'Error']}
-                  />
-                  <Bar dataKey="error" radius={[4, 4, 0, 0]}>
-                    {errorData.map((d, i) => (
-                      <Cell key={i} fill={Math.abs(d.error) < 10 ? colors.good : Math.abs(d.error) < 20 ? colors.warning : colors.bad} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          </Grid>
-        )}
-
-        {/* Prompt to run backtest if no data */}
-        {!data && !isLoading && (
-          <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 4, textAlign: 'center' }}>
-              <Typography sx={{ fontSize: '1.1rem', fontWeight: 500, mb: 1 }}>No backtest results yet</Typography>
-              <Typography sx={{ color: 'text.secondary', mb: 3 }}>
-                Click "Run Backtest" to validate the prediction engine against 20+ years of S&P 500 data.
-                This is computationally intensive and may take 30–60 seconds.
-              </Typography>
-            </Card>
-          </Grid>
-        )}
-      </Grid>
     </Box>
   );
 };

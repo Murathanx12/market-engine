@@ -1,156 +1,288 @@
-import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState } from 'react';
 import {
-  Box, Card, Typography, Grid, CircularProgress, Alert, Chip,
+  Box,
+  Typography,
+  Paper,
+  CircularProgress,
+  Alert,
+  Chip,
+  Modal,
+  IconButton,
 } from '@mui/material';
-import {
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  TrendingFlat as TrendingFlatIcon,
-} from '@mui/icons-material';
-import { getMacroIndicators, getMarketRegime, getSectorRotation } from '../services/api';
-
-const colors = { good: '#4caf50', bad: '#ef5350', info: '#64b5f6', warning: '#ffa726', muted: '#888', accent: '#fff' };
-
-const statusColors = {
-  normal: { bg: 'rgba(76,175,80,0.12)', color: colors.good },
-  caution: { bg: 'rgba(255,167,38,0.12)', color: colors.warning },
-  elevated: { bg: 'rgba(239,83,80,0.12)', color: colors.bad },
-};
-
-const trendIcon = (trend) => {
-  if (trend === 'rising') return <TrendingUpIcon sx={{ fontSize: 18, color: colors.bad }} />;
-  if (trend === 'falling') return <TrendingDownIcon sx={{ fontSize: 18, color: colors.good }} />;
-  return <TrendingFlatIcon sx={{ fontSize: 18, color: colors.muted }} />;
-};
-
-const INDICATOR_LABELS = {
-  VIX: { name: 'VIX (Fear Index)', unit: '', desc: 'Market volatility gauge' },
-  CPI: { name: 'CPI (Inflation)', unit: '%', desc: 'Consumer Price Index' },
-  Unemployment: { name: 'Unemployment Rate', unit: '%', desc: 'U.S. unemployment' },
-  Fed_Rate: { name: 'Fed Funds Rate', unit: '%', desc: 'Federal Reserve target rate' },
-  Yield_Curve: { name: 'Yield Curve (10Y-2Y)', unit: '%', desc: 'Treasury spread' },
-  Treasury_10Y: { name: '10Y Treasury Yield', unit: '%', desc: '10-Year bond yield' },
-  Treasury_2Y: { name: '2Y Treasury Yield', unit: '%', desc: '2-Year bond yield' },
-};
+import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { useQuery } from '@tanstack/react-query';
+import { getMacroIndicatorsValidated, getMacroIndicators } from '../services/api'; // ✅ Using your API
+import RegimeBanner from '../components/RegimeBanner';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
+import CloseIcon from '@mui/icons-material/Close';
 
 const MacroDashboard = () => {
-  const { data: indicators, isLoading, error } = useQuery({
-    queryKey: ['macro'],
+  const [selectedIndicator, setSelectedIndicator] = useState(null);
+
+  // Fetch VALIDATED macro indicators (fixes CPI hallucination)
+  const { data: validatedData, isLoading: validatedLoading } = useQuery({
+    queryKey: ['macroIndicatorsValidated'],
+    queryFn: getMacroIndicatorsValidated,
+    staleTime: 30 * 60 * 1000, // 30 minutes
+  });
+
+  // Fetch legacy dashboard data (for sparklines and trends)
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+    queryKey: ['macroDashboard'],
     queryFn: getMacroIndicators,
-    staleTime: 300000,
+    staleTime: 30 * 60 * 1000,
   });
 
-  const { data: regime } = useQuery({
-    queryKey: ['regime'],
-    queryFn: getMarketRegime,
-    staleTime: 300000,
-  });
+  const isLoading = validatedLoading || dashboardLoading;
 
-  const { data: rotation } = useQuery({
-    queryKey: ['sector-rotation'],
-    queryFn: getSectorRotation,
-    staleTime: 300000,
-  });
+  const getTrendIcon = (trend) => {
+    switch (trend) {
+      case 'rising':
+        return <TrendingUpIcon fontSize="small" sx={{ color: '#ff1744' }} />;
+      case 'falling':
+        return <TrendingDownIcon fontSize="small" sx={{ color: '#00e676' }} />;
+      default:
+        return <TrendingFlatIcon fontSize="small" sx={{ color: '#888' }} />;
+    }
+  };
 
-  if (isLoading) return <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px"><CircularProgress sx={{ color: '#fff' }} /></Box>;
-  if (error) return <Alert severity="error">Error: {error?.message}</Alert>;
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'elevated':
+        return '#ff1744';
+      case 'caution':
+        return '#ffc107';
+      default:
+        return '#00e676';
+    }
+  };
 
-  const data = Array.isArray(indicators) ? indicators : [];
+  const handleIndicatorClick = (indicator) => {
+    setSelectedIndicator(indicator);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedIndicator(null);
+  };
 
   return (
-    <Box>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>Macro Dashboard</Typography>
-        <Typography sx={{ color: 'text.secondary', fontSize: '0.9rem' }}>Key economic indicators and market regime</Typography>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+      <RegimeBanner />
+
+      <Box sx={{ p: 3 }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+          MACRO DASHBOARD
+        </Typography>
+
+        {isLoading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
+            <CircularProgress sx={{ color: '#00d4ff' }} />
+          </Box>
+        )}
+
+        {/* Validated FRED Indicators */}
+        {validatedData?.data && (
+          <>
+            <Typography variant="h6" sx={{ mb: 2, color: '#00d4ff' }}>
+              ✅ VALIDATED FRED INDICATORS
+            </Typography>
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              {Object.entries(validatedData.data)
+                .filter(([key]) => key !== 'note')
+                .map(([key, indicator]) => (
+                  <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={key}>
+                    <Paper
+                      sx={{
+                        p: 2.5,
+                        bgcolor: '#111',
+                        border: '1px solid #333',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          borderColor: '#00d4ff',
+                          transform: 'translateY(-4px)',
+                        },
+                      }}
+                      onClick={() => handleIndicatorClick(indicator)}
+                    >
+                      <Typography variant="overline" color="text.secondary">
+                        {indicator.label}
+                      </Typography>
+                      
+                      <Typography
+                        variant="h4"
+                        sx={{ my: 1.5, fontWeight: 'bold', color: '#00d4ff' }}
+                      >
+                        {indicator.value}
+                        {indicator.unit}
+                      </Typography>
+
+                      {indicator.trend && (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                          {getTrendIcon(indicator.trend)}
+                          <Typography variant="body2" color="text.secondary">
+                            {indicator.change_1m ? `${indicator.change_1m > 0 ? '+' : ''}${indicator.change_1m}${indicator.unit}` : 'N/A'}
+                          </Typography>
+                        </Box>
+                      )}
+
+                      <Typography variant="caption" sx={{ color: '#888' }}>
+                        {indicator.interpretation}
+                      </Typography>
+
+                      {indicator.date && (
+                        <Typography variant="caption" display="block" sx={{ mt: 1, color: '#666' }}>
+                          As of {new Date(indicator.date).toLocaleDateString()}
+                        </Typography>
+                      )}
+
+                      {/* Special handling for yield curve */}
+                      {indicator.inverted !== undefined && (
+                        <Chip
+                          label={indicator.inverted ? 'INVERTED' : 'NORMAL'}
+                          size="small"
+                          sx={{
+                            mt: 1,
+                            bgcolor: indicator.inverted ? '#ff1744' : '#00e676',
+                            color: '#fff',
+                            fontWeight: 'bold',
+                          }}
+                        />
+                      )}
+                    </Paper>
+                  </Grid>
+                ))}
+            </Grid>
+          </>
+        )}
+
+        {/* Dashboard Indicators with Status */}
+        {dashboardData && Array.isArray(dashboardData) && (
+          <>
+            <Typography variant="h6" sx={{ mb: 2, color: '#888' }}>
+              DASHBOARD INDICATORS
+            </Typography>
+            <Grid container spacing={3}>
+              {dashboardData.map((indicator, idx) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={idx}>
+                  <Paper sx={{ p: 2.5, bgcolor: '#111', border: '1px solid #333' }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
+                      <Typography variant="overline" color="text.secondary">
+                        {indicator.indicator}
+                      </Typography>
+                      <Chip
+                        label={indicator.status.toUpperCase()}
+                        size="small"
+                        sx={{
+                          bgcolor: getStatusColor(indicator.status),
+                          color: indicator.status === 'caution' ? '#000' : '#fff',
+                          fontWeight: 'bold',
+                          fontSize: '0.65rem',
+                        }}
+                      />
+                    </Box>
+
+                    <Typography variant="h4" sx={{ mb: 1, fontWeight: 'bold' }}>
+                      {indicator.current_value}
+                    </Typography>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      {getTrendIcon(indicator.trend)}
+                      <Typography variant="body2" color="text.secondary">
+                        {indicator.change_1m !== null
+                          ? `${indicator.change_1m > 0 ? '+' : ''}${indicator.change_1m.toFixed(2)}`
+                          : 'N/A'} (1M)
+                      </Typography>
+                    </Box>
+
+                    {indicator.date && (
+                      <Typography variant="caption" display="block" sx={{ mt: 1, color: '#666' }}>
+                        {new Date(indicator.date).toLocaleDateString()}
+                      </Typography>
+                    )}
+                  </Paper>
+                </Grid>
+              ))}
+            </Grid>
+          </>
+        )}
+
+        {/* No Data State */}
+        {!isLoading && !validatedData?.data && !dashboardData && (
+          <Alert severity="info">
+            No macro data available. Scheduler needs to run to populate data.
+          </Alert>
+        )}
       </Box>
 
-      <Grid container spacing={3}>
-        {/* Regime Card */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card sx={{ p: 3, height: '100%' }}>
-            <Typography sx={{ fontSize: '0.8rem', color: 'text.secondary', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Market Regime</Typography>
-            <Typography sx={{ fontSize: '2.2rem', fontWeight: 700, color: regime?.regime === 'bull' ? colors.good : regime?.regime === 'bear' ? colors.bad : colors.warning, lineHeight: 1.2 }}>
-              {(regime?.regime || 'unknown').charAt(0).toUpperCase() + (regime?.regime || 'unknown').slice(1)}
-            </Typography>
-            <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', mt: 0.5 }}>
-              Confidence: {((regime?.confidence || 0) * 100).toFixed(0)}%
-            </Typography>
-          </Card>
-        </Grid>
-
-        {/* Sector Rotation */}
-        {rotation && (
-          <Grid size={{ xs: 12, md: 8 }}>
-            <Card sx={{ p: 3, height: '100%' }}>
-              <Typography sx={{ fontSize: '1rem', fontWeight: 600, mb: 2 }}>Sector Rotation Strategy</Typography>
-              <Box sx={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                <Box>
-                  <Typography sx={{ fontSize: '0.75rem', color: colors.good, textTransform: 'uppercase', fontWeight: 600, mb: 1 }}>Overweight</Typography>
-                  {(rotation.sectors_to_buy || []).map((s, i) => (
-                    <Chip key={i} label={s} size="small" sx={{ mr: 0.5, mb: 0.5, bgcolor: 'rgba(76,175,80,0.1)', color: colors.good, fontSize: '0.75rem' }} />
-                  ))}
-                </Box>
-                <Box>
-                  <Typography sx={{ fontSize: '0.75rem', color: colors.bad, textTransform: 'uppercase', fontWeight: 600, mb: 1 }}>Underweight</Typography>
-                  {(rotation.sectors_to_sell || []).map((s, i) => (
-                    <Chip key={i} label={s} size="small" sx={{ mr: 0.5, mb: 0.5, bgcolor: 'rgba(239,83,80,0.1)', color: colors.bad, fontSize: '0.75rem' }} />
-                  ))}
-                </Box>
+      {/* Indicator Detail Modal */}
+      <Modal
+        open={!!selectedIndicator}
+        onClose={handleCloseModal}
+        sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <Paper
+          sx={{
+            width: '90%',
+            maxWidth: 800,
+            maxHeight: '90vh',
+            overflow: 'auto',
+            p: 4,
+            bgcolor: '#111',
+            border: '1px solid #333',
+          }}
+        >
+          {selectedIndicator && (
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                  {selectedIndicator.label}
+                </Typography>
+                <IconButton onClick={handleCloseModal} sx={{ color: '#fff' }}>
+                  <CloseIcon />
+                </IconButton>
               </Box>
-              <Typography sx={{ color: 'text.secondary', fontSize: '0.82rem', mt: 2 }}>{rotation.reasoning}</Typography>
-            </Card>
-          </Grid>
-        )}
 
-        {/* Indicator Cards */}
-        {data.map((ind, idx) => {
-          const meta = INDICATOR_LABELS[ind.indicator] || { name: ind.indicator, unit: '', desc: '' };
-          const status = statusColors[ind.status] || statusColors.normal;
-
-          return (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={ind.indicator || idx}>
-              <Card sx={{ p: 3 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                  <Box>
-                    <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary', fontWeight: 500 }}>{meta.name}</Typography>
-                    <Typography sx={{ fontSize: '0.72rem', color: '#555' }}>{meta.desc}</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                    <Chip
-                      label={ind.status?.toUpperCase() || 'NORMAL'}
-                      size="small"
-                      sx={{ height: 22, fontSize: '0.68rem', fontWeight: 600, bgcolor: status.bg, color: status.color }}
-                    />
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
-                  <Typography sx={{ fontSize: '2rem', fontWeight: 700, lineHeight: 1.2 }}>
-                    {ind.current_value != null ? ind.current_value : '—'}
+              <Grid container spacing={3}>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Typography variant="overline" color="text.secondary">
+                    Current Value
                   </Typography>
-                  <Typography sx={{ fontSize: '0.9rem', color: '#666' }}>{meta.unit}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-                  {trendIcon(ind.trend)}
-                  <Typography sx={{ fontSize: '0.82rem', color: ind.change_1m != null ? (ind.change_1m > 0 ? colors.bad : colors.good) : colors.muted }}>
-                    {ind.change_1m != null ? `${ind.change_1m > 0 ? '+' : ''}${ind.change_1m.toFixed(2)} (1M)` : 'No change data'}
+                  <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#00d4ff', mb: 2 }}>
+                    {selectedIndicator.value}
+                    {selectedIndicator.unit}
                   </Typography>
-                </Box>
-              </Card>
-            </Grid>
-          );
-        })}
+                </Grid>
 
-        {data.length === 0 && (
-          <Grid size={{ xs: 12 }}>
-            <Card sx={{ p: 4, textAlign: 'center' }}>
-              <Typography sx={{ color: 'text.secondary' }}>
-                No macro data available. The scheduler will populate indicators shortly.
-              </Typography>
-            </Card>
-          </Grid>
-        )}
-      </Grid>
+                {selectedIndicator.raw_index && (
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <Typography variant="overline" color="text.secondary">
+                      Raw Index Value
+                    </Typography>
+                    <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#888', mb: 2 }}>
+                      {selectedIndicator.raw_index}
+                    </Typography>
+                  </Grid>
+                )}
+              </Grid>
+
+              <Box sx={{ mt: 3, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                <Typography variant="body1" sx={{ color: '#ccc' }}>
+                  {selectedIndicator.interpretation}
+                </Typography>
+              </Box>
+
+              {selectedIndicator.date && (
+                <Typography variant="caption" display="block" sx={{ mt: 2, color: '#666' }}>
+                  Data as of: {new Date(selectedIndicator.date).toLocaleString()}
+                </Typography>
+              )}
+            </>
+          )}
+        </Paper>
+      </Modal>
     </Box>
   );
 };

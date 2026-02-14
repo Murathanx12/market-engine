@@ -8,13 +8,72 @@ const api = axios.create({
   timeout: 120000, // 120s timeout for Monte Carlo computations
 });
 
+// ═══════════════════════════════════════════════════════════════
+// REQUEST/RESPONSE INTERCEPTORS (for better debugging)
+// ═══════════════════════════════════════════════════════════════
+
+api.interceptors.request.use(
+  (config) => {
+    console.log(`🔵 API Request: ${config.method.toUpperCase()} ${config.url}`);
+    return config;
+  },
+  (error) => {
+    console.error('❌ API Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+api.interceptors.response.use(
+  (response) => {
+    console.log(`✅ API Response: ${response.config.url} - ${response.status}`);
+    return response;
+  },
+  (error) => {
+    if (error.response) {
+      console.error(`❌ API Error ${error.response.status}:`, error.response.data);
+    } else if (error.request) {
+      console.error('❌ API No Response:', error.request);
+    } else {
+      console.error('❌ API Setup Error:', error.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════
+// ⭐ NEW CRITICAL ENDPOINTS (Fixes regime schizophrenia & CPI bug)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * UNIFIED MARKET STATUS - Single source of truth for regime
+ * This fixes the "regime schizophrenia" bug where different pages
+ * showed different regimes (Bull on one page, Bear on another)
+ */
+export const getMarketStatus = async () => {
+  const response = await api.get('/api/market-status');
+  return response.data;
+};
+
+/**
+ * VALIDATED MACRO INDICATORS - Properly transformed FRED data
+ * This fixes the CPI hallucination bug (326% → 3.2%)
+ */
+export const getMacroIndicatorsValidated = async () => {
+  const response = await api.get('/api/macro-indicators');
+  return response.data;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// EXISTING ENDPOINTS (All preserved)
+// ═══════════════════════════════════════════════════════════════
+
 // Crash Monitor
 export const getCrashPrediction = async (ticker = 'SPY') => {
   const response = await api.get(`/api/crash/${ticker}`);
   return response.data;
 };
 
-// Crash Estimator (NEW)
+// Crash Estimator
 export const getCrashEstimator = async (months = 60) => {
   const response = await api.get(`/api/crash/estimator?months=${months}`);
   return response.data;
@@ -38,7 +97,7 @@ export const getSP500Projection = async (years = 5) => {
   return response.data;
 };
 
-// Portfolio (NEW)
+// Portfolio
 export const getPortfolio = async () => {
   const response = await api.get('/api/portfolio');
   return response.data;
@@ -60,13 +119,13 @@ export const getNews = async (days = 7, minSeverity = 1) => {
   return response.data;
 };
 
-// Macro Indicators
+// Macro Indicators (legacy - use getMacroIndicatorsValidated for new code)
 export const getMacroIndicators = async () => {
   const response = await api.get('/api/macro');
   return response.data;
 };
 
-// Market Regime
+// Market Regime (legacy - use getMarketStatus for new code)
 export const getMarketRegime = async () => {
   const response = await api.get('/api/regime');
   return response.data;
@@ -102,7 +161,7 @@ export const getAccuracyHistory = async () => {
   return response.data;
 };
 
-// Backtest (NEW)
+// Backtest
 export const getBacktest = async (startYear = 2005) => {
   const response = await api.get(`/api/backtest?start_year=${startYear}`);
   return response.data;
