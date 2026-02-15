@@ -125,7 +125,7 @@ function SidebarContent({ menuItems, pathname, onClose }) {
               Market Engine
             </Typography>
             <Typography sx={{ fontSize: '0.68rem', color: '#666', letterSpacing: '0.02em' }}>
-              AI Prediction Engine v6.0
+              AI Crash Detection & Forecasting
             </Typography>
           </Box>
         </Box>
@@ -155,7 +155,7 @@ function SidebarContent({ menuItems, pathname, onClose }) {
       </Box>
 
       <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <Typography sx={{ fontSize: '0.65rem', color: '#444' }}>© 2026 Market Prediction Engine</Typography>
+        <Typography sx={{ fontSize: '0.65rem', color: '#444' }}>© 2026 Market Engine</Typography>
       </Box>
     </Box>
   );

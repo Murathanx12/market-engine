@@ -3,8 +3,6 @@ Unified Market State Service - Single Source of Truth
 Prevents regime contradictions across pages
 """
 
-import numpy as np
-import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 import logging

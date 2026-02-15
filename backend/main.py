@@ -1,5 +1,5 @@
 """
-Market Prediction Engine V6.0 API
+Market Engine API
 =================================
 Production-ready FastAPI backend with:
 - Centralized market state (fixes regime schizophrenia)
@@ -57,9 +57,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Market Prediction Engine V6",
+    title="Market Engine",
     version="6.0.0",
-    description="Institutional-grade market forecasting with crash detection"
+    description="AI-powered crash detection and probabilistic forecasting"
 )
 
 # CORS Configuration - Open for development
@@ -277,7 +277,7 @@ def _compute_backtest(start_year: int):
 def root():
     """API root - health check and endpoint list."""
     return {
-        "message": "Market Prediction Engine V6.0 API",
+        "message": "Market Engine API",
         "version": "6.0.0",
         "status": "online",
         "engine": "Jump-diffusion Monte Carlo with institutional calibration",
@@ -1464,7 +1464,7 @@ async def startup():
     try:
         init_db()
         logger.info("✅ Database initialized successfully")
-        logger.info("✅ Market Prediction Engine V6 is online")
+        logger.info("✅ Market Engine is online")
         logger.info("✅ Key fixes: Unified regime, Validated FRED data, Robust errors")
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {e}")
@@ -1474,7 +1474,7 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     """Cleanup on shutdown."""
-    logger.info("🛑 Shutting down Market Prediction Engine V6")
+    logger.info("🛑 Shutting down Market Engine")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1484,7 +1484,7 @@ async def shutdown():
 if __name__ == "__main__":
     import uvicorn
     
-    logger.info("Starting Market Prediction Engine V6...")
+    logger.info("Starting Market Engine...")
     logger.info("Access API docs at: http://localhost:8000/docs")
     
     uvicorn.run(

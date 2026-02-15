@@ -47,6 +47,7 @@ const RegimeBanner = () => {
   const regimeColors = {
     'BULL': { bg: '#00e676', color: '#000' },
     'BEAR': { bg: '#ff1744', color: '#fff' },
+    'NEUTRAL': { bg: '#90caf9', color: '#000' },
     'VOLATILE': { bg: '#ffc107', color: '#000' },
   };
 
@@ -58,6 +59,7 @@ const RegimeBanner = () => {
         return <TrendingUpIcon fontSize="small" />;
       case 'BEAR':
         return <TrendingDownIcon fontSize="small" />;
+      case 'NEUTRAL':
       default:
         return <ShowChartIcon fontSize="small" />;
     }
