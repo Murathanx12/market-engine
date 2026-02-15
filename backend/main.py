@@ -13,7 +13,6 @@ import json
 import logging
 import traceback
 import uuid
-import threading
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -221,52 +220,29 @@ class BacktestStartRequest(BaseModel):
 
 
 BACKTEST_JOBS = {}
-BACKTEST_LOCK = threading.Lock()
-MAX_BACKTEST_JOBS = 200
-
-
-def _prune_backtest_jobs() -> None:
-    if len(BACKTEST_JOBS) <= MAX_BACKTEST_JOBS:
-        return
-    done_states = {"SUCCESS", "FAILURE"}
-    ordered = sorted(
-        BACKTEST_JOBS.items(),
-        key=lambda item: item[1].get("submitted_at", ""),
-    )
-    for job_id, payload in ordered:
-        if len(BACKTEST_JOBS) <= MAX_BACKTEST_JOBS:
-            break
-        if payload.get("state") in done_states:
-            BACKTEST_JOBS.pop(job_id, None)
 
 
 def _run_backtest_job(job_id: str, start_year: int):
     """Background worker for backtest job execution."""
-    with BACKTEST_LOCK:
-        if job_id in BACKTEST_JOBS:
-            BACKTEST_JOBS[job_id]["state"] = "RUNNING"
+    BACKTEST_JOBS[job_id]["state"] = "RUNNING"
     try:
         result = _compute_backtest(start_year)
-        with BACKTEST_LOCK:
-            if job_id in BACKTEST_JOBS:
-                BACKTEST_JOBS[job_id].update(
-                    {
-                        "state": "SUCCESS",
-                        "result": result,
-                        "finished_at": datetime.now().isoformat(),
-                    }
-                )
+        BACKTEST_JOBS[job_id].update(
+            {
+                "state": "SUCCESS",
+                "result": result,
+                "finished_at": datetime.now().isoformat(),
+            }
+        )
     except Exception as exc:
         logger.error("Background backtest job failed: %s", exc, exc_info=True)
-        with BACKTEST_LOCK:
-            if job_id in BACKTEST_JOBS:
-                BACKTEST_JOBS[job_id].update(
-                    {
-                        "state": "FAILURE",
-                        "error": str(exc),
-                        "finished_at": datetime.now().isoformat(),
-                    }
-                )
+        BACKTEST_JOBS[job_id].update(
+            {
+                "state": "FAILURE",
+                "error": str(exc),
+                "finished_at": datetime.now().isoformat(),
+            }
+        )
 
 
 def _compute_backtest(start_year: int):
@@ -1377,30 +1353,23 @@ async def get_backtest_limited(start_year: int = 2015):
 @app.post("/api/backtest")
 async def start_backtest_job(request: BacktestStartRequest, background_tasks: BackgroundTasks):
     """Non-blocking backtest job endpoint for UI polling."""
-    current_year = datetime.now().year
-    if request.start_year < 2000 or request.start_year > current_year - 2:
-        raise HTTPException(status_code=400, detail=f"start_year must be between 2000 and {current_year - 2}")
-
     job_id = uuid.uuid4().hex
-    with BACKTEST_LOCK:
-        _prune_backtest_jobs()
-        BACKTEST_JOBS[job_id] = {
-            "state": "PENDING",
-            "start_year": request.start_year,
-            "submitted_at": datetime.now().isoformat(),
-            "result": None,
-        }
+    BACKTEST_JOBS[job_id] = {
+        "state": "PENDING",
+        "start_year": request.start_year,
+        "submitted_at": datetime.now().isoformat(),
+        "result": None,
+    }
     background_tasks.add_task(_run_backtest_job, job_id, request.start_year)
     return {"job_id": job_id, "state": "PENDING"}
 
 
 @app.get("/api/job-status/{job_id}")
 async def get_backtest_job_status(job_id: str):
-    with BACKTEST_LOCK:
-        job = BACKTEST_JOBS.get(job_id)
-        if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
-        return dict(job)
+    job = BACKTEST_JOBS.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 def run_backtest_limited(prices: pd.Series, start_year: int, n_sims: int = 500):
