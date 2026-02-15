@@ -167,6 +167,17 @@ export const getBacktest = async (startYear = 2005) => {
   return response.data;
 };
 
+
+export const startBacktest = async (startYear = 2005) => {
+  const response = await api.post('/api/backtest', { start_year: startYear });
+  return response.data;
+};
+
+export const getBacktestJobStatus = async (jobId) => {
+  const response = await api.get(`/api/job-status/${jobId}`);
+  return response.data;
+};
+
 // Trigger Data Update
 export const triggerDataUpdate = async () => {
   const response = await api.post('/api/update-data');

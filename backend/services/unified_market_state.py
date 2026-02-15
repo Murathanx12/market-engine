@@ -9,6 +9,8 @@ import yfinance as yf
 from datetime import datetime, timedelta
 import logging
 
+from services.regime_service import regime_service
+
 logger = logging.getLogger(__name__)
 
 class UnifiedMarketState:
@@ -46,51 +48,25 @@ class UnifiedMarketState:
             }
     
     def _compute_state(self) -> dict:
-        """Compute market state from S&P 500 data."""
+        """Compute market state from S&P 500 data using HMM regimes."""
         # Fetch S&P 500 INDEX (^GSPC), not SPY ETF
         ticker = yf.Ticker("^GSPC")
-        hist = ticker.history(period="3mo")
+        hist = ticker.history(period="2y")
         
         if hist.empty or len(hist) < 20:
             raise ValueError("Insufficient S&P 500 data")
-        
-        # Calculate log returns
-        returns = np.log(hist['Close'] / hist['Close'].shift(1)).dropna()
-        
-        # Annualized metrics
-        mean_return = returns.mean() * 252
-        volatility = returns.std() * np.sqrt(252)
-        
-        # Regime classification
-        if volatility > 0.25:
-            regime = 'VOLATILE'
-            confidence = min(0.95, volatility / 0.35)
-        elif mean_return > 0.05:
-            regime = 'BULL'
-            confidence = min(0.95, abs(mean_return) / 0.15)
-        elif mean_return < -0.05:
-            regime = 'BEAR'
-            confidence = min(0.95, abs(mean_return) / 0.15)
-        else:
-            regime = 'VOLATILE'
-            confidence = 0.50
         
         # VIX (optional, fallback to estimate)
         try:
             vix_ticker = yf.Ticker("^VIX")
             vix_hist = vix_ticker.history(period="1d")
             vix = float(vix_hist['Close'].iloc[-1]) if not vix_hist.empty else 18.0
-        except:
+        except Exception:
             vix = 18.0
-        
-        return {
-            'regime': regime,
-            'confidence': round(confidence, 3),
-            'volatility': round(volatility, 3),
-            'mean_return': round(mean_return, 3),
-            'vix': round(vix, 2),
-            'last_updated': datetime.now().isoformat()
-        }
+
+        snapshot = regime_service.compute(hist, vix=vix)
+
+        return snapshot.to_dict()
 
 # Global instance
 unified_market_state = UnifiedMarketState()
