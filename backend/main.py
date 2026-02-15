@@ -1,5 +1,5 @@
 """
-Market Prediction Engine V6.0 API
+Market Engine API
 =================================
 Production-ready FastAPI backend with:
 - Centralized market state (fixes regime schizophrenia)
@@ -12,13 +12,15 @@ import os
 import json
 import logging
 import traceback
+import uuid
+import threading
 from datetime import datetime, timedelta
 from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -56,9 +58,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Market Prediction Engine V6",
+    title="Market Engine",
     version="6.0.0",
-    description="Institutional-grade market forecasting with crash detection"
+    description="AI-powered crash detection and probabilistic forecasting"
 )
 
 # CORS Configuration - Open for development
@@ -214,6 +216,83 @@ class PortfolioUpdateRequest(BaseModel):
     notes: Optional[str] = None
 
 
+class BacktestStartRequest(BaseModel):
+    start_year: int = 2015
+
+
+BACKTEST_JOBS = {}
+BACKTEST_LOCK = threading.Lock()
+MAX_BACKTEST_JOBS = 200
+
+
+def _prune_backtest_jobs() -> None:
+    if len(BACKTEST_JOBS) <= MAX_BACKTEST_JOBS:
+        return
+    done_states = {"SUCCESS", "FAILURE"}
+    ordered = sorted(
+        BACKTEST_JOBS.items(),
+        key=lambda item: item[1].get("submitted_at", ""),
+    )
+    for job_id, payload in ordered:
+        if len(BACKTEST_JOBS) <= MAX_BACKTEST_JOBS:
+            break
+        if payload.get("state") in done_states:
+            BACKTEST_JOBS.pop(job_id, None)
+
+
+def _run_backtest_job(job_id: str, start_year: int):
+    """Background worker for backtest job execution."""
+    with BACKTEST_LOCK:
+        if job_id in BACKTEST_JOBS:
+            BACKTEST_JOBS[job_id]["state"] = "RUNNING"
+    try:
+        result = _compute_backtest(start_year)
+        with BACKTEST_LOCK:
+            if job_id in BACKTEST_JOBS:
+                BACKTEST_JOBS[job_id].update(
+                    {
+                        "state": "SUCCESS",
+                        "result": result,
+                        "finished_at": datetime.now().isoformat(),
+                    }
+                )
+    except Exception as exc:
+        logger.error("Background backtest job failed: %s", exc, exc_info=True)
+        with BACKTEST_LOCK:
+            if job_id in BACKTEST_JOBS:
+                BACKTEST_JOBS[job_id].update(
+                    {
+                        "state": "FAILURE",
+                        "error": str(exc),
+                        "finished_at": datetime.now().isoformat(),
+                    }
+                )
+
+
+def _compute_backtest(start_year: int):
+    """Shared backtest compute path for sync and async endpoints."""
+    current_year = datetime.now().year
+
+    if start_year < 2000:
+        raise HTTPException(status_code=400, detail="Start year must be >= 2000")
+
+    if start_year > current_year - 2:
+        raise HTTPException(status_code=400, detail=f"Start year must be < {current_year - 1}")
+
+    if current_year - start_year > 10:
+        start_year = current_year - 10
+        logger.warning("Limited backtest to 10 years: %s-%s", start_year, current_year)
+
+    spy = yf.Ticker('^GSPC')
+    hist = spy.history(period='max')
+
+    if hist is None or len(hist) < 1000:
+        raise ValueError("Insufficient historical data")
+
+    hist = hist[hist.index.year >= start_year]
+    return run_backtest_limited(hist['Close'], start_year=start_year, n_sims=500)
+
+
 # ═══════════════════════════════════════════════════════════════
 # API ENDPOINTS
 # ═══════════════════════════════════════════════════════════════
@@ -222,7 +301,7 @@ class PortfolioUpdateRequest(BaseModel):
 def root():
     """API root - health check and endpoint list."""
     return {
-        "message": "Market Prediction Engine V6.0 API",
+        "message": "Market Engine API",
         "version": "6.0.0",
         "status": "online",
         "engine": "Jump-diffusion Monte Carlo with institutional calibration",
@@ -1283,56 +1362,45 @@ async def get_accuracy_history(db: Session = Depends(get_db)):
 
 @app.get("/api/backtest")
 async def get_backtest_limited(start_year: int = 2015):
-    """
-    ✅ FIXED: Limit backtest scope to prevent timeouts.
-    - Max 10 years of history
-    - Reduced simulation count
-    - Early validation
-    """
+    """Synchronous backtest endpoint retained for compatibility."""
     try:
-        current_year = datetime.now().year
-        
-        # Validation
-        if start_year < 2000:
-            raise HTTPException(
-                status_code=400,
-                detail="Start year must be >= 2000"
-            )
-        
-        if start_year > current_year - 2:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Start year must be < {current_year - 1}"
-            )
-        
-        # Limit to 10 years max
-        if current_year - start_year > 10:
-            start_year = current_year - 10
-            logger.warning(f"Limited backtest to 10 years: {start_year}-{current_year}")
-        
-        # Fetch data
-        spy = yf.Ticker('^GSPC')
-        hist = spy.history(period='max')
-        
-        if hist is None or len(hist) < 1000:
-            raise ValueError("Insufficient historical data")
-        
-        # Filter to date range
-        hist = hist[hist.index.year >= start_year]
-        
-        # Run backtest with REDUCED n_sims
-        result = run_backtest_limited(hist['Close'], start_year=start_year, n_sims=500)
-        
-        logger.info(f"Completed backtest from {start_year} (limited to 500 sims)")
-        
+        result = _compute_backtest(start_year)
+        logger.info("Completed synchronous backtest from %s", start_year)
         return result
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Backtest error: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Backtest failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Backtest failed: {str(e)}")
+
+
+@app.post("/api/backtest")
+async def start_backtest_job(request: BacktestStartRequest, background_tasks: BackgroundTasks):
+    """Non-blocking backtest job endpoint for UI polling."""
+    current_year = datetime.now().year
+    if request.start_year < 2000 or request.start_year > current_year - 2:
+        raise HTTPException(status_code=400, detail=f"start_year must be between 2000 and {current_year - 2}")
+
+    job_id = uuid.uuid4().hex
+    with BACKTEST_LOCK:
+        _prune_backtest_jobs()
+        BACKTEST_JOBS[job_id] = {
+            "state": "PENDING",
+            "start_year": request.start_year,
+            "submitted_at": datetime.now().isoformat(),
+            "result": None,
+        }
+    background_tasks.add_task(_run_backtest_job, job_id, request.start_year)
+    return {"job_id": job_id, "state": "PENDING"}
+
+
+@app.get("/api/job-status/{job_id}")
+async def get_backtest_job_status(job_id: str):
+    with BACKTEST_LOCK:
+        job = BACKTEST_JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return dict(job)
 
 
 def run_backtest_limited(prices: pd.Series, start_year: int, n_sims: int = 500):
@@ -1427,7 +1495,7 @@ async def startup():
     try:
         init_db()
         logger.info("✅ Database initialized successfully")
-        logger.info("✅ Market Prediction Engine V6 is online")
+        logger.info("✅ Market Engine is online")
         logger.info("✅ Key fixes: Unified regime, Validated FRED data, Robust errors")
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {e}")
@@ -1437,7 +1505,7 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     """Cleanup on shutdown."""
-    logger.info("🛑 Shutting down Market Prediction Engine V6")
+    logger.info("🛑 Shutting down Market Engine")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1447,7 +1515,7 @@ async def shutdown():
 if __name__ == "__main__":
     import uvicorn
     
-    logger.info("Starting Market Prediction Engine V6...")
+    logger.info("Starting Market Engine...")
     logger.info("Access API docs at: http://localhost:8000/docs")
     
     uvicorn.run(

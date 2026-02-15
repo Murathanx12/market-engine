@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   Typography,
@@ -11,7 +11,7 @@ import {
 } from '@mui/material';
 import { Grid } from '@mui/material'; // ✅ Grid2 migration
 import { useQuery } from '@tanstack/react-query';
-import { getAccuracyHistory, getBacktest } from '../services/api';
+import { getAccuracyHistory, startBacktest, getBacktestJobStatus } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
 import {
   LineChart,
@@ -39,13 +39,62 @@ const SimulationAccuracy = () => {
     staleTime: 60 * 60 * 1000, // 1 hour
   });
 
-  // Fetch backtest data (only when needed)
-  const { data: backtestData, isLoading: backtestLoading, error: backtestError } = useQuery({
-    queryKey: ['backtest', backtestYear],
-    queryFn: () => getBacktest(backtestYear),
-    staleTime: 24 * 60 * 60 * 1000, // 24 hours - this data doesn't change
-    enabled: view === 'backtest', // Only fetch when viewing backtest
-  });
+  const [backtestData, setBacktestData] = useState(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let intervalId;
+
+    const runBacktest = async () => {
+      if (view !== 'backtest') return;
+      setBacktestLoading(true);
+      setBacktestError(null);
+      setBacktestData(null);
+
+      try {
+        const { job_id } = await startBacktest(backtestYear);
+        intervalId = setInterval(async () => {
+          try {
+            const status = await getBacktestJobStatus(job_id);
+            if (status.state === 'SUCCESS') {
+              clearInterval(intervalId);
+              if (!cancelled) {
+                setBacktestData(status.result);
+                setBacktestLoading(false);
+              }
+            }
+            if (status.state === 'FAILURE') {
+              clearInterval(intervalId);
+              if (!cancelled) {
+                setBacktestError(new Error(status.error || 'Backtest failed'));
+                setBacktestLoading(false);
+              }
+            }
+          } catch (pollErr) {
+            clearInterval(intervalId);
+            if (!cancelled) {
+              setBacktestError(pollErr);
+              setBacktestLoading(false);
+            }
+          }
+        }, 2000);
+      } catch (err) {
+        if (!cancelled) {
+          setBacktestError(err);
+          setBacktestLoading(false);
+        }
+      }
+    };
+
+    runBacktest();
+
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [view, backtestYear]);
 
   const handleViewChange = (event, newView) => {
     if (newView !== null) {
