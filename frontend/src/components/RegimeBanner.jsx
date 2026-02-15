@@ -1,18 +1,12 @@
 import React from 'react';
 import { Box, Typography, Chip } from '@mui/material';
-import { useQuery } from '@tanstack/react-query';
-import { getMarketStatus } from '../services/api';
+import useMarketStatus from '../hooks/useMarketStatus';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 
 const RegimeBanner = () => {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['marketStatus'],
-    queryFn: getMarketStatus,
-    staleTime: 60 * 60 * 1000, // 1 hour
-    gcTime: 2 * 60 * 60 * 1000, // 2 hours
-  });
+  const { data, isLoading, error } = useMarketStatus();
 
   if (isLoading) {
     return (
@@ -94,7 +88,7 @@ const RegimeBanner = () => {
       />
       
       <Typography variant="body2" color="text.secondary">
-        Confidence: <strong>{(confidence * 100).toFixed(1)}%</strong>
+        Confidence: <strong>{(confidence <= 1 ? confidence * 100 : confidence).toFixed(1)}%</strong>
       </Typography>
       
       <Typography variant="body2" color="text.secondary">

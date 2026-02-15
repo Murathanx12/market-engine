@@ -18,6 +18,7 @@ import { Grid } from '@mui/material'; // ✅ Grid2 migration
 import { useQuery } from '@tanstack/react-query';
 import { getAnalysis } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
+import useMarketStatus from '../hooks/useMarketStatus';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
@@ -29,6 +30,8 @@ const AnalysisPage = () => {
     queryFn: () => getAnalysis(timeframe),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+
+  const { data: marketStatusData } = useMarketStatus();
 
   const handleTimeframeChange = (event, newTimeframe) => {
     if (newTimeframe !== null) {
@@ -132,10 +135,10 @@ const AnalysisPage = () => {
                   Current Regime
                 </Typography>
                 <Typography variant="h3" sx={{ my: 2, fontWeight: 'bold', textTransform: 'uppercase' }}>
-                  {data.regime || 'UNKNOWN'}
+                  {marketStatusData?.data?.regime || 'UNKNOWN'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Based on market conditions and volatility
+                  Unified regime from /api/market-status
                 </Typography>
               </Paper>
             </Grid>
