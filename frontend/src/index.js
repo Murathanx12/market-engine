@@ -1,11 +1,20 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import App from './App';
 import './index.css';
 
-// Create QueryClient AFTER imports
+let ReactQueryDevtools = null;
+
+if (process.env.NODE_ENV === 'development') {
+  try {
+    ReactQueryDevtools =
+      require('@tanstack/react-query-devtools').ReactQueryDevtools;
+  } catch (e) {
+    console.warn('React Query Devtools not available');
+  }
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -25,9 +34,8 @@ root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <App />
-      {/* Show React Query DevTools in development */}
-      {process.env.NODE_ENV === 'development' && ReactQueryDevtools && (
-        <ReactQueryDevtools initialIsOpen={false} position="bottom-right" />
+      {ReactQueryDevtools && (
+        <ReactQueryDevtools initialIsOpen={false} />
       )}
     </QueryClientProvider>
   </React.StrictMode>

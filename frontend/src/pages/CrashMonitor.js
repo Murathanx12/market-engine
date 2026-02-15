@@ -4,10 +4,8 @@ import {
   Box, Card, Typography, CircularProgress, Alert,
   TextField, Button, Chip,
 } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-} from 'recharts';
+import { Grid } from '@mui/material'; // Grid2 migration
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { getCrashPrediction } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
 

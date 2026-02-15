@@ -9,7 +9,7 @@ import {
   ToggleButton,
   Chip,
 } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { Grid } from '@mui/material'; // ✅ Grid2 migration
 import { useQuery } from '@tanstack/react-query';
 import { getAccuracyHistory, getBacktest } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';

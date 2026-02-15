@@ -9,7 +9,7 @@ import {
   Modal,
   IconButton,
 } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { Grid } from '@mui/material'; // ✅ Grid2 migration
 import { useQuery } from '@tanstack/react-query';
 import { getMacroIndicatorsValidated, getMacroIndicators } from '../services/api'; // ✅ Using your API
 import RegimeBanner from '../components/RegimeBanner';

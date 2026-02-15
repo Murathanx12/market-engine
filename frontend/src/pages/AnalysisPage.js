@@ -14,7 +14,7 @@ import {
   TableHead,
   TableRow,
 } from '@mui/material';
-import Grid from '@mui/material/Grid2'; // ✅ Grid2 migration
+import { Grid } from '@mui/material'; // ✅ Grid2 migration
 import { useQuery } from '@tanstack/react-query';
 import { getAnalysis } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
