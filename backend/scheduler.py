@@ -9,7 +9,9 @@ import time
 import logging
 from datetime import datetime, timedelta
 
-from data_fetchers import run_daily_update
+import data_fetchers as data_fetchers_module
+
+run_daily_update = getattr(data_fetchers_module, 'run_daily_update', None)
 from database import SessionLocal, ProjectionCache
 from engine import run_multi_scenario_simulation
 from services.unified_market_state import unified_market_state
@@ -69,6 +71,8 @@ def precompute_projection_cache():
 def job():
     logger.info("⏰ Scheduled job starting...")
     try:
+        if run_daily_update is None:
+            raise RuntimeError("run_daily_update is missing from data_fetchers.py")
         run_daily_update()
         precompute_projection_cache()
     except Exception as e:

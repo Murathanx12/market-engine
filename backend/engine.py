@@ -20,6 +20,7 @@ Key capabilities:
 
 import numpy as np
 import pandas as pd
+import logging
 try:
     from scipy import stats as scipy_stats
     HAS_SCIPY = True
@@ -29,7 +30,6 @@ except ImportError:
     logging.warning("scipy not available - using numpy fallback for Student-t distribution")
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-import logging
 
 logger = logging.getLogger(__name__)
 
