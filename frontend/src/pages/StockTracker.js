@@ -7,7 +7,6 @@ import {
   TextField,
   Button,
   Alert,
-  Chip,
   Divider,
   Dialog,
   DialogTitle,
@@ -23,8 +22,6 @@ import {
 } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -34,8 +31,6 @@ import {
   AreaChart,
 } from 'recharts';
 import AddIcon from '@mui/icons-material/Add';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 
 const StockTracker = () => {
   const [ticker, setTicker] = useState('AAPL');
@@ -104,7 +99,7 @@ const StockTracker = () => {
   const projections = projection?.data?.projections || {};
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
       <RegimeBanner />
 
       <Box sx={{ p: 3 }}>
@@ -113,7 +108,7 @@ const StockTracker = () => {
         </Typography>
 
         {/* Search Box */}
-        <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
+        <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
           <Grid container spacing={2} alignItems="center">
             <Grid size={{ xs: 12, md: 8 }}>
               <TextField
@@ -126,12 +121,12 @@ const StockTracker = () => {
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    color: '#fff',
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+                    color: 'text.primary',
+                    '& fieldset': { borderColor: 'divider' },
+                    '&:hover fieldset': { borderColor: 'text.secondary' },
+                    '&.Mui-focused fieldset': { borderColor: 'primary.main' },
                   },
-                  '& .MuiInputLabel-root': { color: '#888' },
+                  '& .MuiInputLabel-root': { color: 'text.secondary' },
                 }}
               />
             </Grid>
@@ -142,11 +137,11 @@ const StockTracker = () => {
                 onClick={handleSearch}
                 disabled={projectionLoading}
                 sx={{
-                  bgcolor: '#00d4ff',
-                  color: '#000',
+                  bgcolor: 'primary.main',
+                  color: 'common.white',
                   fontWeight: 'bold',
                   height: '56px',
-                  '&:hover': { bgcolor: '#00b8e6' },
+                  '&:hover': { bgcolor: 'primary.dark' },
                 }}
               >
                 {projectionLoading ? <CircularProgress size={24} /> : 'SEARCH'}
@@ -158,7 +153,7 @@ const StockTracker = () => {
         {/* Loading State */}
         {projectionLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
-            <CircularProgress sx={{ color: '#00d4ff' }} />
+            <CircularProgress sx={{ color: 'primary.main' }} />
           </Box>
         )}
 
@@ -174,13 +169,13 @@ const StockTracker = () => {
           <Grid container spacing={3}>
             {/* Current Price Card */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 4, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   {searchTicker} - Current Price
                 </Typography>
                 <Typography
                   variant="h2"
-                  sx={{ my: 2, fontWeight: 'bold', color: '#00d4ff' }}
+                  sx={{ my: 2, fontWeight: 'bold', color: 'primary.main' }}
                 >
                   ${currentPrice.toFixed(2)}
                 </Typography>
@@ -189,10 +184,10 @@ const StockTracker = () => {
                   startIcon={<AddIcon />}
                   onClick={() => setAddDialogOpen(true)}
                   sx={{
-                    borderColor: '#00d4ff',
-                    color: '#00d4ff',
+                    borderColor: 'primary.main',
+                    color: 'primary.main',
                     '&:hover': {
-                      borderColor: '#00b8e6',
+                      borderColor: 'primary.dark',
                       bgcolor: 'rgba(0, 212, 255, 0.1)',
                     },
                   }}
@@ -209,17 +204,17 @@ const StockTracker = () => {
 
             {/* Projections */}
             <Grid size={{ xs: 12, md: 8 }}>
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+              <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   Price Projections
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1, textAlign: 'center' }}>
                       <Typography variant="caption" color="text.secondary">
                         30 Days
                       </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', my: 1 }}>
                         ${projections['30d']?.toFixed(2) || '0.00'}
                       </Typography>
                       <Typography variant="caption" sx={{ color: projections['30d'] > currentPrice ? '#00e676' : '#ff1744' }}>
@@ -230,11 +225,11 @@ const StockTracker = () => {
                   </Grid>
 
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1, textAlign: 'center' }}>
                       <Typography variant="caption" color="text.secondary">
                         6 Months
                       </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', my: 1 }}>
                         ${projections['180d']?.toFixed(2) || '0.00'}
                       </Typography>
                       <Typography variant="caption" sx={{ color: projections['180d'] > currentPrice ? '#00e676' : '#ff1744' }}>
@@ -245,11 +240,11 @@ const StockTracker = () => {
                   </Grid>
 
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1, textAlign: 'center' }}>
                       <Typography variant="caption" color="text.secondary">
                         1 Year
                       </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', my: 1 }}>
                         ${projections['365d']?.toFixed(2) || '0.00'}
                       </Typography>
                       <Typography variant="caption" sx={{ color: projections['365d'] > currentPrice ? '#00e676' : '#ff1744' }}>
@@ -260,11 +255,11 @@ const StockTracker = () => {
                   </Grid>
 
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, textAlign: 'center' }}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1, textAlign: 'center' }}>
                       <Typography variant="caption" color="text.secondary">
                         5 Years
                       </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff', my: 1 }}>
+                      <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main', my: 1 }}>
                         ${projections['1825d']?.toFixed(2) || '0.00'}
                       </Typography>
                       <Typography variant="caption" sx={{ color: projections['1825d'] > currentPrice ? '#00e676' : '#ff1744' }}>
@@ -282,7 +277,7 @@ const StockTracker = () => {
                     <Typography variant="body2" color="text.secondary">
                       Analyst Target (1Y)
                     </Typography>
-                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: '#888' }}>
+                    <Typography variant="h6" sx={{ fontWeight: 'bold', color: 'text.secondary' }}>
                       ${projection.data.analyst_target.toFixed(2)}
                     </Typography>
                   </Box>
@@ -302,7 +297,7 @@ const StockTracker = () => {
             {/* Price History Chart */}
             {history?.prices && history.prices.length > 0 && (
               <Grid size={{ xs: 12 }}>
-                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     1-Year Price History
                   </Typography>
@@ -310,33 +305,33 @@ const StockTracker = () => {
                     <AreaChart data={history.prices}>
                       <defs>
                         <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.3} />
-                          <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                       <XAxis
                         dataKey="date"
-                        stroke="#666"
-                        tick={{ fill: '#666', fontSize: 12 }}
+                        stroke="#64748b"
+                        tick={{ fill: '#64748b', fontSize: 12 }}
                         tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
                       />
                       <YAxis
-                        stroke="#666"
-                        tick={{ fill: '#666' }}
+                        stroke="#64748b"
+                        tick={{ fill: '#64748b' }}
                         domain={['auto', 'auto']}
                         tickFormatter={(val) => `$${val.toFixed(0)}`}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
-                        labelStyle={{ color: '#888' }}
+                        contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', color: 'text.primary' }}
+                        labelStyle={{ color: 'text.secondary' }}
                         formatter={(value) => [`$${value.toFixed(2)}`, 'Price']}
                         labelFormatter={(label) => new Date(label).toLocaleDateString()}
                       />
                       <Area
                         type="monotone"
                         dataKey="close"
-                        stroke="#00d4ff"
+                        stroke="#2563eb"
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#colorPrice)"
@@ -350,7 +345,7 @@ const StockTracker = () => {
             {historyLoading && (
               <Grid size={{ xs: 12 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
-                  <CircularProgress sx={{ color: '#00d4ff' }} size={30} />
+                  <CircularProgress sx={{ color: 'primary.main' }} size={30} />
                 </Box>
               </Grid>
             )}
@@ -363,7 +358,7 @@ const StockTracker = () => {
         open={addDialogOpen}
         onClose={() => setAddDialogOpen(false)}
         PaperProps={{
-          sx: { bgcolor: '#111', border: '1px solid #333', color: '#fff' }
+          sx: { bgcolor: 'background.paper', border: '1px solid #e2e8f0', color: 'text.primary' }
         }}
       >
         <DialogTitle>Add {searchTicker} to Portfolio</DialogTitle>
@@ -379,12 +374,12 @@ const StockTracker = () => {
             sx={{
               mt: 2,
               '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': { borderColor: '#444' },
-                '&:hover fieldset': { borderColor: '#666' },
-                '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+                color: 'text.primary',
+                '& fieldset': { borderColor: 'divider' },
+                '&:hover fieldset': { borderColor: 'text.secondary' },
+                '&.Mui-focused fieldset': { borderColor: 'primary.main' },
               },
-              '& .MuiInputLabel-root': { color: '#888' },
+              '& .MuiInputLabel-root': { color: 'text.secondary' },
             }}
           />
           <TextField
@@ -398,12 +393,12 @@ const StockTracker = () => {
             sx={{
               mt: 2,
               '& .MuiOutlinedInput-root': {
-                color: '#fff',
-                '& fieldset': { borderColor: '#444' },
-                '&:hover fieldset': { borderColor: '#666' },
-                '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+                color: 'text.primary',
+                '& fieldset': { borderColor: 'divider' },
+                '&:hover fieldset': { borderColor: 'text.secondary' },
+                '&.Mui-focused fieldset': { borderColor: 'primary.main' },
               },
-              '& .MuiInputLabel-root': { color: '#888' },
+              '& .MuiInputLabel-root': { color: 'text.secondary' },
             }}
           />
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
@@ -411,7 +406,7 @@ const StockTracker = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)} sx={{ color: '#888' }}>
+          <Button onClick={() => setAddDialogOpen(false)} sx={{ color: 'text.secondary' }}>
             Cancel
           </Button>
           <Button
@@ -419,9 +414,9 @@ const StockTracker = () => {
             variant="contained"
             disabled={addMutation.isLoading}
             sx={{
-              bgcolor: '#00d4ff',
-              color: '#000',
-              '&:hover': { bgcolor: '#00b8e6' },
+              bgcolor: 'primary.main',
+              color: 'common.white',
+              '&:hover': { bgcolor: 'primary.dark' },
             }}
           >
             {addMutation.isLoading ? <CircularProgress size={20} /> : 'Add'}

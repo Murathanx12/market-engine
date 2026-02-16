@@ -38,8 +38,24 @@ from engine import (
     analyze_sectors, SECTOR_MAP, INSTITUTIONAL_BENCHMARKS, CONFIG,
 )
 
-# Data fetcher imports (your existing data_fetchers.py)
-from data_fetchers import DataFetcher, run_daily_update
+# Data fetcher imports (resilient to hot-reload partial states)
+import data_fetchers as data_fetchers_module
+
+DataFetcher = getattr(data_fetchers_module, 'DataFetcher', None)
+run_daily_update = getattr(data_fetchers_module, 'run_daily_update', None)
+
+if DataFetcher is None:
+    raise RuntimeError(
+        "data_fetchers.DataFetcher is missing. Ensure backend/data_fetchers.py exports DataFetcher."
+    )
+
+if run_daily_update is None:
+    logger = logging.getLogger(__name__)
+
+    def run_daily_update():
+        logger.warning(
+            "run_daily_update is unavailable in data_fetchers; scheduler warm-up skipped."
+        )
 
 # NEW: Import our fixed services
 from services.market_state_service import market_state_service

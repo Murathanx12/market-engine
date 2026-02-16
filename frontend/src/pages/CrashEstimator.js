@@ -12,8 +12,6 @@ import { useQuery } from '@tanstack/react-query';
 import { getCrashEstimator } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
 import {
-  LineChart,
-  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -51,7 +49,7 @@ const CrashEstimator = () => {
   }, [chartData]);
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
       <RegimeBanner />
 
       <Box sx={{ p: 3 }}>
@@ -62,7 +60,7 @@ const CrashEstimator = () => {
         {/* Loading */}
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
-            <CircularProgress sx={{ color: '#00d4ff' }} />
+            <CircularProgress sx={{ color: 'primary.main' }} />
           </Box>
         )}
 
@@ -78,7 +76,7 @@ const CrashEstimator = () => {
           <Grid container spacing={3}>
             {/* Key Metrics */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 4, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   1-Year Crash Probability
                 </Typography>
@@ -96,7 +94,7 @@ const CrashEstimator = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 4, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   5-Year Crash Probability
                 </Typography>
@@ -114,7 +112,7 @@ const CrashEstimator = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 4, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 4, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   Peak Risk Month
                 </Typography>
@@ -137,7 +135,7 @@ const CrashEstimator = () => {
             {/* Contributing Factors */}
             {data.contributing_factors && data.contributing_factors.length > 0 && (
               <Grid size={{ xs: 12 }}>
-                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
                   <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
                     <WarningIcon sx={{ color: '#ffc107' }} />
                     Contributing Risk Factors
@@ -145,7 +143,7 @@ const CrashEstimator = () => {
                   <Grid container spacing={2}>
                     {data.contributing_factors.map((factor, idx) => (
                       <Grid size={{ xs: 12, md: 6 }} key={idx}>
-                        <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                             <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
                               {factor.factor}
@@ -155,7 +153,7 @@ const CrashEstimator = () => {
                               size="small"
                               sx={{
                                 bgcolor: factor.weight > 0.3 ? '#ff1744' : factor.weight > 0.15 ? '#ffc107' : '#888',
-                                color: '#fff',
+                                color: 'text.primary',
                                 fontWeight: 'bold',
                               }}
                             />
@@ -189,7 +187,7 @@ const CrashEstimator = () => {
             {/* Timeline Chart */}
             {chartData.length > 0 && (
               <Grid size={{ xs: 12 }}>
-                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Crash Probability Timeline (Next 60 Months)
                   </Typography>
@@ -201,22 +199,22 @@ const CrashEstimator = () => {
                           <stop offset="95%" stopColor="#ff1744" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                       <XAxis
                         dataKey="month"
-                        stroke="#666"
-                        tick={{ fill: '#666', fontSize: 12 }}
-                        label={{ value: 'Months from Now', position: 'insideBottom', offset: -5, fill: '#666' }}
+                        stroke="#64748b"
+                        tick={{ fill: '#64748b', fontSize: 12 }}
+                        label={{ value: 'Months from Now', position: 'insideBottom', offset: -5, fill: '#64748b' }}
                       />
                       <YAxis
-                        stroke="#666"
-                        tick={{ fill: '#666' }}
+                        stroke="#64748b"
+                        tick={{ fill: '#64748b' }}
                         domain={[0, 100]}
                         tickFormatter={(val) => `${val}%`}
-                        label={{ value: 'Crash Probability', angle: -90, position: 'insideLeft', fill: '#666' }}
+                        label={{ value: 'Crash Probability', angle: -90, position: 'insideLeft', fill: '#64748b' }}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                        contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', color: 'text.primary' }}
                         formatter={(value) => [`${value.toFixed(1)}%`, 'Crash Probability']}
                         labelFormatter={(label) => `Month ${label}`}
                       />
@@ -234,7 +232,7 @@ const CrashEstimator = () => {
                   </ResponsiveContainer>
 
                   {peakMonth && (
-                    <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                    <Box sx={{ mt: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
                       <Typography variant="body2" color="text.secondary">
                         <strong>Peak Risk:</strong> Month {peakMonth.month} shows the highest crash probability 
                         at {peakMonth.probability.toFixed(1)}%. The model estimates elevated risk during this period 
