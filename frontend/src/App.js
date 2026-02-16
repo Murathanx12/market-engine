@@ -36,29 +36,29 @@ import Portfolio from './pages/Portfolio';
 
 const theme = createTheme({
   palette: {
-    mode: 'dark',
-    primary: { main: '#ffffff' },
-    secondary: { main: '#a0a0a0' },
+    mode: 'light',
+    primary: { main: '#2563eb' },
+    secondary: { main: '#64748b' },
     success: { main: '#4caf50' },
     error: { main: '#ef5350' },
     warning: { main: '#ffa726' },
-    info: { main: '#64b5f6' },
-    background: { default: '#0a0a0a', paper: '#141414' },
-    text: { primary: '#e8e8e8', secondary: '#888888' },
-    divider: 'rgba(255,255,255,0.06)',
+    info: { main: '#0ea5e9' },
+    background: { default: '#f4f7fb', paper: '#ffffff' },
+    text: { primary: '#0f172a', secondary: '#64748b' },
+    divider: 'rgba(15, 23, 42, 0.08)',
   },
   typography: {
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    h4: { fontWeight: 600, fontSize: '1.5rem', color: '#e8e8e8' },
-    h6: { fontWeight: 500, color: '#e8e8e8' },
+    h4: { fontWeight: 700, fontSize: '1.6rem', color: '#0f172a' },
+    h6: { fontWeight: 600, color: '#0f172a' },
   },
   components: {
     MuiCard: {
       styleOverrides: {
         root: {
-          backgroundColor: '#141414',
+          backgroundColor: '#ffffff',
           borderRadius: 12,
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: '1px solid rgba(15,23,42,0.08)',
           backgroundImage: 'none',
         },
       },
@@ -66,19 +66,19 @@ const theme = createTheme({
     MuiButton: {
       styleOverrides: {
         contained: {
-          backgroundColor: '#ffffff',
-          color: '#0a0a0a',
+          backgroundColor: '#2563eb',
+          color: '#ffffff',
           fontWeight: 600,
-          '&:hover': { backgroundColor: '#e0e0e0' },
+          '&:hover': { backgroundColor: '#1d4ed8' },
         },
       },
     },
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.12)' },
-          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.25)' },
-          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#ffffff' },
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(15,23,42,0.18)' },
+          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(15,23,42,0.3)' },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#2563eb' },
         },
       },
     },
@@ -97,13 +97,13 @@ function NavItem({ to, icon, text, active, onClick }) {
         display: 'flex',
         alignItems: 'center',
         padding: '11px 20px',
-        color: active ? '#ffffff' : '#888888',
-        backgroundColor: active ? 'rgba(255,255,255,0.06)' : 'transparent',
-        borderLeft: active ? '3px solid #ffffff' : '3px solid transparent',
+        color: active ? '#1e3a8a' : '#475569',
+        backgroundColor: active ? 'rgba(37,99,235,0.12)' : 'transparent',
+        borderLeft: active ? '3px solid #2563eb' : '3px solid transparent',
         transition: 'all 0.2s ease',
         marginBottom: 2,
       }}
-      onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)'; }}
+      onMouseEnter={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'rgba(37,99,235,0.06)'; }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
     >
       <Box sx={{ mr: 2, display: 'flex', opacity: active ? 1 : 0.6 }}>{icon}</Box>
@@ -114,17 +114,17 @@ function NavItem({ to, icon, text, active, onClick }) {
 
 function SidebarContent({ menuItems, pathname, onClose }) {
   return (
-    <Box sx={{ width: sidebarWidth, height: '100%', bgcolor: '#0e0e0e', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2.5, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+    <Box sx={{ width: sidebarWidth, height: '100%', bgcolor: '#ffffff', display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ p: 2.5, borderBottom: '1px solid rgba(15,23,42,0.08)' }}>
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
-          <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.5 }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: 1.5, bgcolor: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', mr: 1.5 }}>
             <Typography sx={{ fontSize: '1.2rem', lineHeight: 1 }}>📈</Typography>
           </Box>
           <Box>
-            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#e8e8e8', letterSpacing: '-0.01em' }}>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', color: '#0f172a', letterSpacing: '-0.01em' }}>
               Market Engine
             </Typography>
-            <Typography sx={{ fontSize: '0.68rem', color: '#666', letterSpacing: '0.02em' }}>
+            <Typography sx={{ fontSize: '0.68rem', color: '#64748b', letterSpacing: '0.02em' }}>
               AI Crash Detection & Forecasting
             </Typography>
           </Box>
@@ -132,21 +132,21 @@ function SidebarContent({ menuItems, pathname, onClose }) {
       </Box>
 
       <Box sx={{ mt: 2, flex: 1, overflowY: 'auto' }}>
-        <Typography sx={{ px: 2.5, py: 0.8, fontSize: '0.65rem', color: '#555', fontWeight: 700, letterSpacing: '0.12em' }}>
+        <Typography sx={{ px: 2.5, py: 0.8, fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.12em' }}>
           ANALYSIS
         </Typography>
         {menuItems.filter(i => i.group === 'analysis').map((item) => (
           <NavItem key={item.path} to={item.path} icon={item.icon} text={item.text} active={pathname === item.path} onClick={onClose} />
         ))}
 
-        <Typography sx={{ px: 2.5, py: 0.8, mt: 1.5, fontSize: '0.65rem', color: '#555', fontWeight: 700, letterSpacing: '0.12em' }}>
+        <Typography sx={{ px: 2.5, py: 0.8, mt: 1.5, fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.12em' }}>
           TOOLS
         </Typography>
         {menuItems.filter(i => i.group === 'tools').map((item) => (
           <NavItem key={item.path} to={item.path} icon={item.icon} text={item.text} active={pathname === item.path} onClick={onClose} />
         ))}
 
-        <Typography sx={{ px: 2.5, py: 0.8, mt: 1.5, fontSize: '0.65rem', color: '#555', fontWeight: 700, letterSpacing: '0.12em' }}>
+        <Typography sx={{ px: 2.5, py: 0.8, mt: 1.5, fontSize: '0.65rem', color: '#94a3b8', fontWeight: 700, letterSpacing: '0.12em' }}>
           DATA
         </Typography>
         {menuItems.filter(i => i.group === 'data').map((item) => (
@@ -154,8 +154,8 @@ function SidebarContent({ menuItems, pathname, onClose }) {
         ))}
       </Box>
 
-      <Box sx={{ p: 2, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-        <Typography sx={{ fontSize: '0.65rem', color: '#444' }}>© 2026 Market Engine</Typography>
+      <Box sx={{ p: 2, borderTop: '1px solid rgba(15,23,42,0.08)' }}>
+        <Typography sx={{ fontSize: '0.65rem', color: '#94a3b8' }}>© 2026 Market Engine</Typography>
       </Box>
     </Box>
   );
@@ -188,7 +188,7 @@ function AppContent() {
       {isMobile && (
         <IconButton
           onClick={() => setDrawerOpen(true)}
-          sx={{ position: 'fixed', top: 12, left: 12, zIndex: 1300, color: '#e8e8e8' }}
+          sx={{ position: 'fixed', top: 12, left: 12, zIndex: 1300, color: '#1e293b' }}
         >
           <MenuIcon />
         </IconButton>
@@ -198,12 +198,12 @@ function AppContent() {
         <Drawer
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
-          PaperProps={{ sx: { bgcolor: '#0e0e0e', borderRight: '1px solid rgba(255,255,255,0.06)' } }}
+          PaperProps={{ sx: { bgcolor: '#ffffff', borderRight: '1px solid rgba(15,23,42,0.08)' } }}
         >
           <SidebarContent menuItems={menuItems} pathname={location.pathname} onClose={() => setDrawerOpen(false)} />
         </Drawer>
       ) : (
-        <Box sx={{ width: sidebarWidth, bgcolor: '#0e0e0e', borderRight: '1px solid rgba(255,255,255,0.06)', position: 'fixed', height: '100vh', overflowY: 'auto' }}>
+        <Box sx={{ width: sidebarWidth, bgcolor: '#ffffff', borderRight: '1px solid rgba(15,23,42,0.08)', position: 'fixed', height: '100vh', overflowY: 'auto' }}>
           <SidebarContent menuItems={menuItems} pathname={location.pathname} onClose={() => {}} />
         </Box>
       )}
