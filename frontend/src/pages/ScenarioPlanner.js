@@ -11,14 +11,12 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Chip,
 } from '@mui/material';
 import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery } from '@tanstack/react-query';
 import { runScenario } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
 import {
-  LineChart,
   Line,
   AreaChart,
   Area,
@@ -40,12 +38,12 @@ const ScenarioPlanner = () => {
     taiwan_conflict: {
       name: 'Taiwan Conflict',
       description: 'China invades Taiwan, causing global supply chain disruption',
-      color: '#ff1744',
+      color: 'error.main',
     },
     fed_pivot: {
       name: 'Fed Pivot',
       description: 'Fed cuts rates aggressively due to recession fears',
-      color: '#00e676',
+      color: 'success.main',
     },
     ai_bubble_burst: {
       name: 'AI Bubble Burst',
@@ -55,12 +53,12 @@ const ScenarioPlanner = () => {
     trade_war: {
       name: 'Trade War Escalation',
       description: 'Escalating US-China tariffs hurt global trade',
-      color: '#ffc107',
+      color: 'warning.main',
     },
     soft_landing: {
       name: 'Soft Landing',
       description: 'Fed engineers soft landing, economy grows steadily',
-      color: '#00d4ff',
+      color: 'primary.main',
     },
   };
 
@@ -94,7 +92,7 @@ const ScenarioPlanner = () => {
   }, [data]);
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'transparent', color: 'text.primary' }}>
       <RegimeBanner />
 
       <Box sx={{ p: 3 }}>
@@ -103,7 +101,7 @@ const ScenarioPlanner = () => {
         </Typography>
 
         {/* Controls */}
-        <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
+        <Paper sx={{ p: 3, mb: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 4 }}>
               <TextField
@@ -116,28 +114,28 @@ const ScenarioPlanner = () => {
                 variant="outlined"
                 sx={{
                   '& .MuiOutlinedInput-root': {
-                    color: '#fff',
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#00d4ff' },
+                    color: 'text.primary',
+                    '& fieldset': { borderColor: 'divider' },
+                    '&:hover fieldset': { borderColor: 'text.secondary' },
+                    '&.Mui-focused fieldset': { borderColor: 'primary.main' },
                   },
-                  '& .MuiInputLabel-root': { color: '#888' },
+                  '& .MuiInputLabel-root': { color: 'text.secondary' },
                 }}
               />
             </Grid>
 
             <Grid size={{ xs: 12, md: 5 }}>
               <FormControl fullWidth>
-                <InputLabel sx={{ color: '#888' }}>Scenario</InputLabel>
+                <InputLabel sx={{ color: 'text.secondary' }}>Scenario</InputLabel>
                 <Select
                   value={scenario}
                   onChange={(e) => setScenario(e.target.value)}
                   label="Scenario"
                   sx={{
-                    color: '#fff',
-                    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#444' },
-                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#666' },
-                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#00d4ff' },
+                    color: 'text.primary',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'text.secondary' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
                   }}
                 >
                   {Object.entries(scenarios).map(([key, s]) => (
@@ -167,11 +165,11 @@ const ScenarioPlanner = () => {
                 onClick={handleRun}
                 disabled={isLoading}
                 sx={{
-                  bgcolor: '#00d4ff',
-                  color: '#000',
+                  bgcolor: 'primary.main',
+                  color: 'common.white',
                   fontWeight: 'bold',
                   height: '56px',
-                  '&:hover': { bgcolor: '#00b8e6' },
+                  '&:hover': { bgcolor: 'primary.dark' },
                 }}
               >
                 {isLoading ? <CircularProgress size={24} /> : 'RUN SCENARIO'}
@@ -181,8 +179,8 @@ const ScenarioPlanner = () => {
 
           {/* Scenario Description */}
           {scenario && scenarios[scenario] && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
-              <Typography variant="body2" sx={{ color: '#ccc' }}>
+            <Box sx={{ mt: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 <strong>{scenarios[scenario].name}:</strong> {scenarios[scenario].description}
               </Typography>
             </Box>
@@ -192,7 +190,7 @@ const ScenarioPlanner = () => {
         {/* Loading */}
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
-            <CircularProgress sx={{ color: '#00d4ff' }} />
+            <CircularProgress sx={{ color: 'primary.main' }} />
           </Box>
         )}
 
@@ -208,29 +206,29 @@ const ScenarioPlanner = () => {
           <Grid container spacing={3}>
             {/* Key Metrics */}
             <Grid size={{ xs: 12, md: 3 }}>
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   Current Price
                 </Typography>
-                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#fff' }}>
+                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: 'text.primary' }}>
                   ${data.current_price?.toFixed(2) || '0.00'}
                 </Typography>
               </Paper>
             </Grid>
 
             <Grid size={{ xs: 12, md: 3 }}>
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   Expected Price
                 </Typography>
-                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#00d4ff' }}>
+                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: 'primary.main' }}>
                   ${data.expected_price?.toFixed(2) || '0.00'}
                 </Typography>
               </Paper>
             </Grid>
 
             <Grid size={{ xs: 12, md: 3 }}>
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   Expected Return
                 </Typography>
@@ -239,7 +237,7 @@ const ScenarioPlanner = () => {
                   sx={{
                     my: 1,
                     fontWeight: 'bold',
-                    color: data.expected_return >= 0 ? '#00e676' : '#ff1744',
+                    color: data.expected_return >= 0 ? 'success.main' : 'error.main',
                   }}
                 >
                   {data.expected_return >= 0 ? '+' : ''}
@@ -249,11 +247,11 @@ const ScenarioPlanner = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 3 }}>
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+              <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
                 <Typography variant="overline" color="text.secondary">
                   Scenario Probability
                 </Typography>
-                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#ffc107' }}>
+                <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: 'warning.main' }}>
                   {(data.probability * 100).toFixed(0)}%
                 </Typography>
               </Paper>
@@ -261,23 +259,23 @@ const ScenarioPlanner = () => {
 
             {/* Confidence Intervals */}
             <Grid size={{ xs: 12, md: 6 }}>
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+              <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   95% Confidence Interval
                 </Typography>
-                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, mb: 1 }}>
+                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1, mb: 1 }}>
                   <Typography variant="caption" color="text.secondary">
                     Pessimistic (5th percentile)
                   </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#ff1744' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'error.main' }}>
                     ${data.confidence_95_low?.toFixed(2) || '0.00'}
                   </Typography>
                 </Box>
-                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
                   <Typography variant="caption" color="text.secondary">
                     Optimistic (95th percentile)
                   </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00e676' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'success.main' }}>
                     ${data.confidence_95_high?.toFixed(2) || '0.00'}
                   </Typography>
                 </Box>
@@ -285,11 +283,11 @@ const ScenarioPlanner = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 6 }}>
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+              <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
                 <Typography variant="h6" sx={{ mb: 2 }}>
                   Scenario Details
                 </Typography>
-                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1, mb: 1 }}>
+                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1, mb: 1 }}>
                   <Typography variant="caption" color="text.secondary">
                     Duration
                   </Typography>
@@ -297,11 +295,11 @@ const ScenarioPlanner = () => {
                     {data.duration_days} days
                   </Typography>
                 </Box>
-                <Box sx={{ p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
                   <Typography variant="caption" color="text.secondary">
                     Median Outcome
                   </Typography>
-                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#00d4ff' }}>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
                     ${data.median_price?.toFixed(2) || '0.00'}
                   </Typography>
                 </Box>
@@ -311,7 +309,7 @@ const ScenarioPlanner = () => {
             {/* Projection Chart */}
             {chartData.length > 0 && (
               <Grid size={{ xs: 12 }}>
-                <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
+                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Price Projection - {scenarios[scenario]?.name}
                   </Typography>
@@ -319,25 +317,25 @@ const ScenarioPlanner = () => {
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.2} />
-                          <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
+                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                       <XAxis
                         dataKey="date"
-                        stroke="#666"
-                        tick={{ fill: '#666', fontSize: 11 }}
+                        stroke="#64748b"
+                        tick={{ fill: '#64748b', fontSize: 11 }}
                         tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       />
                       <YAxis
-                        stroke="#666"
-                        tick={{ fill: '#666' }}
+                        stroke="#64748b"
+                        tick={{ fill: '#64748b' }}
                         domain={['auto', 'auto']}
                         tickFormatter={(val) => `$${val.toFixed(0)}`}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                        contentStyle={{ backgroundColor: '#fff', border: '1px solid #cbd5e1', color: '#0f172a' }}
                         formatter={(value, name) => {
                           const labels = {
                             mean: 'Expected Price',
@@ -363,7 +361,7 @@ const ScenarioPlanner = () => {
                         type="monotone"
                         dataKey="p05"
                         stroke="none"
-                        fill="#000"
+                        fill="#f4f7fb"
                         fillOpacity={1}
                         name="5th Percentile"
                       />
@@ -372,7 +370,7 @@ const ScenarioPlanner = () => {
                       <Line
                         type="monotone"
                         dataKey="mean"
-                        stroke="#00d4ff"
+                        stroke="#2563eb"
                         strokeWidth={3}
                         dot={false}
                         name="Expected Price"
@@ -380,10 +378,10 @@ const ScenarioPlanner = () => {
                     </AreaChart>
                   </ResponsiveContainer>
                   
-                  <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
+                  <Box sx={{ mt: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
                     <Typography variant="body2" color="text.secondary">
                       The shaded area represents the 90% confidence interval. 
-                      The cyan line shows the expected price path if this scenario unfolds.
+                      The blue line shows the expected price path if this scenario unfolds.
                     </Typography>
                   </Box>
                 </Paper>
@@ -394,7 +392,7 @@ const ScenarioPlanner = () => {
 
         {/* Initial State */}
         {!data && !isLoading && runTrigger === 0 && (
-          <Paper sx={{ p: 5, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
+          <Paper sx={{ p: 5, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
             <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
               Ready to run scenario analysis
             </Typography>
