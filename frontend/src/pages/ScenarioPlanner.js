@@ -13,7 +13,7 @@ import {
   MenuItem,
   Chip,
 } from '@mui/material';
-import { Grid } from '@mui/material'; // ✅ Grid2 migration
+import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery } from '@tanstack/react-query';
 import { runScenario } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';

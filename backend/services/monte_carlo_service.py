@@ -8,6 +8,8 @@ import pandas as pd
 from typing import Dict, List
 import logging
 
+from engine import CONFIG
+
 logger = logging.getLogger(__name__)
 
 
@@ -22,10 +24,11 @@ class MonteCarloService:
     """
     
     def __init__(self):
-        # Sanity caps
-        self.MAX_ANNUAL_RETURN = 3.0  # 300% max annual return
-        self.MAX_VOLATILITY = 1.2     # 120% max volatility
-        self.MAX_5Y_CAGR = 0.35       # 35% max CAGR over 5 years
+        # Sanity caps shared with core engine config
+        self.MAX_VOLATILITY = CONFIG['max_annual_vol']
+        self.MAX_5Y_CAGR = 0.35       # guardrail for 5Y CAGR
+        # Convert total 5Y cap to an annualized drift guardrail.
+        self.MAX_ANNUAL_RETURN = (1 + CONFIG['max_5y_return']) ** (1 / 5) - 1
     
     def run_simulation(
         self,
@@ -144,28 +147,28 @@ class MonteCarloService:
         return final_prices
     
     def _calculate_statistics(
-        self, 
-        current_price: float, 
-        final_prices: np.ndarray, 
+        self,
+        current_price: float,
+        final_prices: np.ndarray,
         years: int
     ) -> Dict:
         """Calculate projection statistics from simulation results"""
-        
-        # Percentiles
+
         percentiles = {
             'p5': np.percentile(final_prices, 5),
             'p25': np.percentile(final_prices, 25),
-            'p50': np.percentile(final_prices, 50),  # Median
+            'p50': np.percentile(final_prices, 50),
             'p75': np.percentile(final_prices, 75),
             'p95': np.percentile(final_prices, 95),
         }
-        
-        # Returns
+
         returns = (final_prices / current_price - 1) * 100
-        
-        # Calculate CAGR from median
         median_cagr = ((percentiles['p50'] / current_price) ** (1 / years) - 1) * 100
-        
+
+        max_allowed_total_return_pct = CONFIG['max_5y_return'] * 100
+        observed_total_return_pct = ((percentiles['p95'] / current_price) - 1) * 100
+        anomaly_flag = observed_total_return_pct > max_allowed_total_return_pct
+
         return {
             'current_price': round(current_price, 2),
             'projections': {
@@ -184,8 +187,10 @@ class MonteCarloService:
             'years': years,
             'probability_of_gain': round((np.sum(final_prices > current_price) / len(final_prices)) * 100, 1),
             'probability_of_loss': round((np.sum(final_prices < current_price) / len(final_prices)) * 100, 1),
+            'anomaly_flag': bool(anomaly_flag),
+            'max_total_return_cap_pct': round(max_allowed_total_return_pct, 1),
         }
-    
+
     def _get_default_projection(self, current_price: float, years: int) -> Dict:
         """Return conservative default projection if simulation fails"""
         # Assume 7% annual return (historical S&P 500 average)
@@ -209,7 +214,9 @@ class MonteCarloService:
             'years': years,
             'probability_of_gain': 65.0,
             'probability_of_loss': 35.0,
-            'note': 'Default projection - simulation failed'
+            'note': 'Default projection - simulation failed',
+            'anomaly_flag': False,
+            'max_total_return_cap_pct': round(CONFIG['max_5y_return'] * 100, 1),
         }
 
 

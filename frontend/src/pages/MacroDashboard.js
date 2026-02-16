@@ -9,63 +9,25 @@ import {
   Modal,
   IconButton,
 } from '@mui/material';
-import { Grid } from '@mui/material'; // ✅ Grid2 migration
+import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery } from '@tanstack/react-query';
-import { getMacroIndicatorsValidated, getMacroIndicators } from '../services/api'; // ✅ Using your API
+import { getMacroIndicatorsValidated } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import CloseIcon from '@mui/icons-material/Close';
 
 const MacroDashboard = () => {
   const [selectedIndicator, setSelectedIndicator] = useState(null);
 
-  // Fetch VALIDATED macro indicators (fixes CPI hallucination)
-  const { data: validatedData, isLoading: validatedLoading } = useQuery({
+  const { data: validatedData, isLoading } = useQuery({
     queryKey: ['macroIndicatorsValidated'],
     queryFn: getMacroIndicatorsValidated,
-    staleTime: 30 * 60 * 1000, // 30 minutes
-  });
-
-  // Fetch legacy dashboard data (for sparklines and trends)
-  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
-    queryKey: ['macroDashboard'],
-    queryFn: getMacroIndicators,
     staleTime: 30 * 60 * 1000,
   });
 
-  const isLoading = validatedLoading || dashboardLoading;
-
-  const getTrendIcon = (trend) => {
-    switch (trend) {
-      case 'rising':
-        return <TrendingUpIcon fontSize="small" sx={{ color: '#ff1744' }} />;
-      case 'falling':
-        return <TrendingDownIcon fontSize="small" sx={{ color: '#00e676' }} />;
-      default:
-        return <TrendingFlatIcon fontSize="small" sx={{ color: '#888' }} />;
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'elevated':
-        return '#ff1744';
-      case 'caution':
-        return '#ffc107';
-      default:
-        return '#00e676';
-    }
-  };
-
-  const handleIndicatorClick = (indicator) => {
-    setSelectedIndicator(indicator);
-  };
-
-  const handleCloseModal = () => {
-    setSelectedIndicator(null);
-  };
+  const warningState = validatedData?.data?.warning_state;
+  const indicators = Object.entries(validatedData?.data || {}).filter(
+    ([key]) => !['note', 'warning_state'].includes(key)
+  );
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
@@ -82,125 +44,73 @@ const MacroDashboard = () => {
           </Box>
         )}
 
-        {/* Validated FRED Indicators */}
-        {validatedData?.data && (
-          <>
-            <Typography variant="h6" sx={{ mb: 2, color: '#00d4ff' }}>
-              ✅ VALIDATED FRED INDICATORS
-            </Typography>
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-              {Object.entries(validatedData.data)
-                .filter(([key]) => key !== 'note')
-                .map(([key, indicator]) => (
-                  <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={key}>
-                    <Paper
-                      sx={{
-                        p: 2.5,
-                        bgcolor: '#111',
-                        border: '1px solid #333',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          borderColor: '#00d4ff',
-                          transform: 'translateY(-4px)',
-                        },
-                      }}
-                      onClick={() => handleIndicatorClick(indicator)}
-                    >
-                      <Typography variant="overline" color="text.secondary">
-                        {indicator.label}
-                      </Typography>
-                      
-                      <Typography
-                        variant="h4"
-                        sx={{ my: 1.5, fontWeight: 'bold', color: '#00d4ff' }}
-                      >
-                        {indicator.value}
-                        {indicator.unit}
-                      </Typography>
-
-                      {indicator.trend && (
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                          {getTrendIcon(indicator.trend)}
-                          <Typography variant="body2" color="text.secondary">
-                            {indicator.change_1m ? `${indicator.change_1m > 0 ? '+' : ''}${indicator.change_1m}${indicator.unit}` : 'N/A'}
-                          </Typography>
-                        </Box>
-                      )}
-
-                      <Typography variant="caption" sx={{ color: '#888' }}>
-                        {indicator.interpretation}
-                      </Typography>
-
-                      {indicator.date && (
-                        <Typography variant="caption" display="block" sx={{ mt: 1, color: '#666' }}>
-                          As of {new Date(indicator.date).toLocaleDateString()}
-                        </Typography>
-                      )}
-
-                      {/* Special handling for yield curve */}
-                      {indicator.inverted !== undefined && (
-                        <Chip
-                          label={indicator.inverted ? 'INVERTED' : 'NORMAL'}
-                          size="small"
-                          sx={{
-                            mt: 1,
-                            bgcolor: indicator.inverted ? '#ff1744' : '#00e676',
-                            color: '#fff',
-                            fontWeight: 'bold',
-                          }}
-                        />
-                      )}
-                    </Paper>
-                  </Grid>
-                ))}
-            </Grid>
-          </>
+        {warningState?.has_warnings && (
+          <Alert severity="warning" sx={{ mb: 3 }}>
+            {warningState.messages?.join(' | ') || 'Some macro values are fallback estimates.'}
+          </Alert>
         )}
 
-        {/* Dashboard Indicators with Status */}
-        {dashboardData && Array.isArray(dashboardData) && (
+        {indicators.length > 0 && (
           <>
-            <Typography variant="h6" sx={{ mb: 2, color: '#888' }}>
-              DASHBOARD INDICATORS
+            <Typography variant="h6" sx={{ mb: 2, color: '#00d4ff' }}>
+              ✅ CANONICAL VALIDATED MACRO INDICATORS
             </Typography>
-            <Grid container spacing={3}>
-              {dashboardData.map((indicator, idx) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={idx}>
-                  <Paper sx={{ p: 2.5, bgcolor: '#111', border: '1px solid #333' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 1 }}>
-                      <Typography variant="overline" color="text.secondary">
-                        {indicator.indicator}
-                      </Typography>
-                      <Chip
-                        label={indicator.status.toUpperCase()}
-                        size="small"
-                        sx={{
-                          bgcolor: getStatusColor(indicator.status),
-                          color: indicator.status === 'caution' ? '#000' : '#fff',
-                          fontWeight: 'bold',
-                          fontSize: '0.65rem',
-                        }}
-                      />
-                    </Box>
-
-                    <Typography variant="h4" sx={{ mb: 1, fontWeight: 'bold' }}>
-                      {indicator.current_value}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+              {indicators.map(([key, indicator]) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={key}>
+                  <Paper
+                    sx={{
+                      p: 2.5,
+                      bgcolor: '#111',
+                      border: '1px solid #333',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      '&:hover': {
+                        borderColor: '#00d4ff',
+                        transform: 'translateY(-4px)',
+                      },
+                    }}
+                    onClick={() => setSelectedIndicator(indicator)}
+                  >
+                    <Typography variant="overline" color="text.secondary">
+                      {indicator.label}
                     </Typography>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {getTrendIcon(indicator.trend)}
-                      <Typography variant="body2" color="text.secondary">
-                        {indicator.change_1m !== null
-                          ? `${indicator.change_1m > 0 ? '+' : ''}${indicator.change_1m.toFixed(2)}`
-                          : 'N/A'} (1M)
-                      </Typography>
-                    </Box>
+                    <Typography
+                      variant="h4"
+                      sx={{ my: 1.5, fontWeight: 'bold', color: '#00d4ff' }}
+                    >
+                      {indicator.value ?? indicator.spread}
+                      {indicator.unit}
+                    </Typography>
+
+                    <Typography variant="caption" sx={{ color: '#888' }}>
+                      {indicator.interpretation}
+                    </Typography>
+
+                    {indicator.warning && (
+                      <Alert severity="warning" sx={{ mt: 1.5, py: 0 }}>
+                        {indicator.warning}
+                      </Alert>
+                    )}
 
                     {indicator.date && (
                       <Typography variant="caption" display="block" sx={{ mt: 1, color: '#666' }}>
-                        {new Date(indicator.date).toLocaleDateString()}
+                        As of {new Date(indicator.date).toLocaleDateString()}
                       </Typography>
+                    )}
+
+                    {indicator.inverted !== undefined && (
+                      <Chip
+                        label={indicator.inverted ? 'INVERTED' : 'NORMAL'}
+                        size="small"
+                        sx={{
+                          mt: 1,
+                          bgcolor: indicator.inverted ? '#ff1744' : '#00e676',
+                          color: '#fff',
+                          fontWeight: 'bold',
+                        }}
+                      />
                     )}
                   </Paper>
                 </Grid>
@@ -209,18 +119,16 @@ const MacroDashboard = () => {
           </>
         )}
 
-        {/* No Data State */}
-        {!isLoading && !validatedData?.data && !dashboardData && (
+        {!isLoading && indicators.length === 0 && (
           <Alert severity="info">
-            No macro data available. Scheduler needs to run to populate data.
+            No canonical macro data available. Verify FRED connectivity and scheduler runs.
           </Alert>
         )}
       </Box>
 
-      {/* Indicator Detail Modal */}
       <Modal
         open={!!selectedIndicator}
-        onClose={handleCloseModal}
+        onClose={() => setSelectedIndicator(null)}
         sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         <Paper
@@ -240,7 +148,7 @@ const MacroDashboard = () => {
                 <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
                   {selectedIndicator.label}
                 </Typography>
-                <IconButton onClick={handleCloseModal} sx={{ color: '#fff' }}>
+                <IconButton onClick={() => setSelectedIndicator(null)} sx={{ color: '#fff' }}>
                   <CloseIcon />
                 </IconButton>
               </Box>
@@ -251,7 +159,7 @@ const MacroDashboard = () => {
                     Current Value
                   </Typography>
                   <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#00d4ff', mb: 2 }}>
-                    {selectedIndicator.value}
+                    {selectedIndicator.value ?? selectedIndicator.spread}
                     {selectedIndicator.unit}
                   </Typography>
                 </Grid>
@@ -274,10 +182,10 @@ const MacroDashboard = () => {
                 </Typography>
               </Box>
 
-              {selectedIndicator.date && (
-                <Typography variant="caption" display="block" sx={{ mt: 2, color: '#666' }}>
-                  Data as of: {new Date(selectedIndicator.date).toLocaleString()}
-                </Typography>
+              {selectedIndicator.warning && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                  {selectedIndicator.warning}
+                </Alert>
               )}
             </>
           )}

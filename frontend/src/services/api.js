@@ -119,17 +119,10 @@ export const getNews = async (days = 7, minSeverity = 1) => {
   return response.data;
 };
 
-// Macro Indicators (legacy - use getMacroIndicatorsValidated for new code)
-export const getMacroIndicators = async () => {
-  const response = await api.get('/api/macro');
-  return response.data;
-};
+// Legacy shims now mapped to canonical endpoints to avoid contradictory state.
+export const getMacroIndicators = async () => getMacroIndicatorsValidated();
 
-// Market Regime (legacy - use getMarketStatus for new code)
-export const getMarketRegime = async () => {
-  const response = await api.get('/api/regime');
-  return response.data;
-};
+export const getMarketRegime = async () => getMarketStatus();
 
 // Sector Rotation
 export const getSectorRotation = async () => {

@@ -28,13 +28,13 @@ from sqlalchemy.orm import Session
 from database import (
     SessionLocal, MacroData, NewsEvent, CrashPrediction,
     StockPrediction, MarketRegime, SectorRotation, AccuracyLog,
-    PortfolioHolding, CrashEstimate, BacktestResult, init_db,
+    PortfolioHolding, CrashEstimate, BacktestResult, ProjectionCache, init_db,
 )
 
 # Engine imports (your existing engine.py)
 from engine import (
     run_multi_scenario_simulation, project_stock, estimate_crash_timeline,
-    run_backtest, analyze_sentiment, detect_regime, estimate_volatility,
+    run_backtest, analyze_sentiment, estimate_volatility,
     analyze_sectors, SECTOR_MAP, INSTITUTIONAL_BENCHMARKS, CONFIG,
 )
 
@@ -146,33 +146,23 @@ def _safe_fetch_price(ticker: str, fallback: float = None) -> float:
 
 def get_regime_state(db: Session) -> dict:
     """
-    Get current regime and macro state from database.
-    Falls back to safe defaults if database is empty.
+    Get canonical regime and macro state from unified market status + macro DB values.
     """
     try:
-        # Try to get from database
-        regime_data = db.query(MarketRegime).order_by(
-            MarketRegime.date.desc()
-        ).first()
-        
-        regime = regime_data.regime if regime_data else 'bull'
-        confidence = regime_data.confidence if regime_data else 0.6
-        
-        vix = _get_indicator(db, 'VIX', 18.0)
-        yield_curve = _get_indicator(db, 'Yield_Curve', 0.5)
-        inflation = _get_indicator(db, 'CPI', 3.0)
-        unemployment = _get_indicator(db, 'Unemployment', 4.0)
-        
+        state = unified_market_state.get_market_state()
+
+        vix = float(state.get('vix', _get_indicator(db, 'VIX', 18.0)))
         return {
-            'regime': regime,
-            'confidence': confidence,
+            'regime': str(state.get('regime', 'VOLATILE')).lower(),
+            'confidence': float(state.get('confidence', 0.5)),
             'vix': vix,
-            'yield_curve': yield_curve,
-            'inflation': inflation,
-            'unemployment': unemployment,
+            'yield_curve': _get_indicator(db, 'Yield_Curve', 0.5),
+            'inflation': _get_indicator(db, 'CPI', 3.0),
+            'unemployment': _get_indicator(db, 'Unemployment', 4.0),
+            'last_updated': state.get('last_updated'),
         }
     except Exception as e:
-        logger.warning(f"Error fetching regime state: {e}")
+        logger.warning(f"Error fetching unified regime state: {e}")
         return {
             'regime': 'volatile',
             'confidence': 0.5,
@@ -180,6 +170,7 @@ def get_regime_state(db: Session) -> dict:
             'yield_curve': 0.5,
             'inflation': 3.0,
             'unemployment': 4.0,
+            'last_updated': datetime.now().isoformat(),
         }
 
 
@@ -189,13 +180,54 @@ def _get_indicator(db: Session, name: str, default: float) -> float:
         record = db.query(MacroData).filter(
             MacroData.indicator == name
         ).order_by(MacroData.date.desc()).first()
-        
+
         if record and record.value is not None:
             return float(record.value)
     except Exception as e:
         logger.debug(f"Could not fetch {name}: {e}")
-    
+
     return default
+
+
+def _get_cached_payload(db: Session, cache_key: str):
+    """Return cached payload when present and unexpired."""
+    now = datetime.now()
+    cache = db.query(ProjectionCache).filter(
+        ProjectionCache.cache_key == cache_key,
+        ProjectionCache.expires_at > now,
+    ).order_by(ProjectionCache.updated_at.desc()).first()
+
+    if not cache:
+        return None
+
+    try:
+        payload = json.loads(cache.payload_json)
+        payload["cached"] = True
+        payload["cache_key"] = cache_key
+        payload["cache_expires_at"] = cache.expires_at.isoformat()
+        return payload
+    except Exception:
+        return None
+
+
+def _set_cached_payload(db: Session, cache_key: str, payload: dict, ttl_hours: int):
+    """Upsert cache payload with TTL."""
+    expires_at = datetime.now() + timedelta(hours=ttl_hours)
+    payload_to_store = dict(payload)
+    payload_to_store.pop("cached", None)
+    payload_to_store["cached_at"] = datetime.now().isoformat()
+
+    cache = db.query(ProjectionCache).filter(ProjectionCache.cache_key == cache_key).first()
+    if cache:
+        cache.payload_json = json.dumps(payload_to_store)
+        cache.expires_at = expires_at
+    else:
+        db.add(ProjectionCache(
+            cache_key=cache_key,
+            payload_json=json.dumps(payload_to_store),
+            expires_at=expires_at,
+        ))
+    db.commit()
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -385,48 +417,71 @@ async def get_macro_indicators_validated():
 # ═══════════════════════════════════════════════════════════════
 
 @app.get("/api/crash/estimator")
-async def get_crash_estimator_fixed(months: int = 60):
+async def get_crash_estimator_fixed(months: int = 60, db: Session = Depends(get_db)):
     """
-    ✅ FIXED: Cap crash probabilities at realistic levels.
+    Cached crash estimator timeline.
     Max 1-year: 50%, Max 5-year: 80%
     """
+    months = min(months, 60)
+    cache_key = f"crash_estimator:{months}"
+
     try:
-        current_level = _safe_fetch_price('^GSPC', fallback=6836.0)
+        cached = _get_cached_payload(db, cache_key)
+        if cached:
+            return cached
+
         state = unified_market_state.get_market_state()
-        
+
         # Base probability from volatility
         base_prob = min(0.15, state['volatility'] / 2.0)
-        
+
         # Monthly probabilities with decay
         monthly_probs = []
-        for month in range(1, min(months + 1, 61)):
-            # Probability decays over time
+        for month in range(1, months + 1):
             prob = base_prob * np.exp(-month / 24.0)
             monthly_probs.append({
                 "month": month,
-                "probability": round(float(prob * 100), 2)  # Convert to %
+                "probability": round(float(prob * 100), 2)
             })
-        
-        # Aggregate probabilities with caps
-        prob_1y = min(0.50, base_prob * 1.5)  # MAX 50%
-        prob_5y = min(0.80, base_prob * 3.0)  # MAX 80%
-        
-        # Peak risk month
+
+        prob_1y = min(0.50, base_prob * 1.5)
+        prob_5y = min(0.80, base_prob * 3.0)
         peak_month = int(np.argmax([p['probability'] for p in monthly_probs]) + 1)
-        
-        return {
+
+        payload = {
             "status": "success",
             "monthly_probabilities": monthly_probs,
-            "total_crash_probability_1y": round(float(prob_1y), 3),  # e.g., 0.35
-            "total_crash_probability_5y": round(float(prob_5y), 3),  # e.g., 0.65
+            "total_crash_probability_1y": round(float(prob_1y), 3),
+            "total_crash_probability_5y": round(float(prob_5y), 3),
             "peak_risk_month": peak_month,
             "contributing_factors": [
                 {"factor": "Volatility", "weight": round(state['volatility'], 3)},
                 {"factor": "VIX Level", "weight": round(min(state['vix'] / 50, 0.5), 3)},
             ],
-            "note": "Probabilities capped at realistic levels (max 50% 1Y, 80% 5Y)"
+            "note": "Probabilities capped at realistic levels (max 50% 1Y, 80% 5Y)",
+            "regime_source": "unified_market_state",
+            "cached": False,
         }
-        
+
+        _set_cached_payload(db, cache_key, payload, ttl_hours=6)
+
+        # Persist latest crash estimate for traceability
+        db.add(CrashEstimate(
+            estimation_date=datetime.now(),
+            regime=state.get('regime', 'VOLATILE').lower(),
+            risk_score=base_prob,
+            vix=float(state.get('vix', 18.0)),
+            yield_curve=None,
+            crash_prob_1y=float(prob_1y),
+            crash_prob_5y=float(prob_5y),
+            peak_risk_month=peak_month,
+            data_json=json.dumps(monthly_probs),
+            factors_json=json.dumps(payload['contributing_factors']),
+        ))
+        db.commit()
+
+        return payload
+
     except Exception as e:
         logger.error(f"Crash estimator error: {e}", exc_info=True)
         return {"status": "error", "message": str(e)}
@@ -662,28 +717,39 @@ async def get_stock_history(ticker: str, period: str = '5y'):
 
 @app.get("/api/sp500/projection")
 async def get_sp500_projection(years: int = 5, db: Session = Depends(get_db)):
-    """Get S&P 500 multi-scenario Monte Carlo projection."""
+    """Get cached/precomputed S&P 500 multi-scenario Monte Carlo projection."""
+    years = max(1, min(years, 5))
+    cache_key = f"sp500_projection:{years}"
+
     try:
+        cached = _get_cached_payload(db, cache_key)
+        if cached:
+            logger.info("Returning cached %s", cache_key)
+            return cached
+
         current_level = _safe_fetch_price('SPY', fallback=605.0)
         state = get_regime_state(db)
-        
+
         result = run_multi_scenario_simulation(
             current_level=current_level,
             regime=state['regime'],
             vix_level=state['vix'],
             yield_curve=state['yield_curve'],
-            forecast_years=min(years, 5),
+            forecast_years=years,
         )
-        
+
         result['institutional_benchmarks'] = {
-            k: round(v * 100, 1) 
+            k: round(v * 100, 1)
             for k, v in INSTITUTIONAL_BENCHMARKS.items()
         }
-        
-        logger.info(f"Generated {years}-year S&P 500 projection")
-        
+        result['regime_source'] = 'unified_market_state'
+        result['cached'] = False
+
+        _set_cached_payload(db, cache_key, result, ttl_hours=6)
+
+        logger.info("Generated and cached %s", cache_key)
         return result
-        
+
     except Exception as e:
         logger.error(f"Error in S&P 500 projection: {e}", exc_info=True)
         raise HTTPException(
@@ -947,72 +1013,19 @@ def get_recent_news(
 @app.get("/api/macro")
 def get_macro_dashboard(db: Session = Depends(get_db)):
     """
-    Get macro indicators with trends.
-    
-    NOTE: For validated FRED data, use /api/macro-indicators instead.
-    This endpoint uses database values which may be stale.
+    Legacy macro endpoint shim.
+
+    De-emphasized in favor of /api/macro-indicators to keep a single validated source.
     """
-    try:
-        indicators = [
-            'VIX', 'CPI', 'Unemployment', 'Fed_Rate',
-            'Yield_Curve', 'Treasury_10Y', 'Treasury_2Y'
-        ]
-        results = []
-        
-        for name in indicators:
-            latest = db.query(MacroData).filter(
-                MacroData.indicator == name
-            ).order_by(MacroData.date.desc()).first()
-            
-            if not latest:
-                continue
-            
-            month_ago = db.query(MacroData).filter(
-                MacroData.indicator == name,
-                MacroData.date <= datetime.now() - timedelta(days=30),
-            ).order_by(MacroData.date.desc()).first()
-            
-            change_1m = None
-            trend = "stable"
-            if month_ago and latest.value is not None and month_ago.value is not None:
-                change_1m = latest.value - month_ago.value
-                if abs(change_1m) > abs(latest.value) * 0.03:
-                    trend = "rising" if change_1m > 0 else "falling"
-            
-            # Status badge
-            status = "normal"
-            if name == 'VIX':
-                status = "elevated" if latest.value > 25 else "caution" if latest.value > 20 else "normal"
-            elif name == 'Yield_Curve':
-                status = "elevated" if latest.value < 0 else "caution" if latest.value < 0.5 else "normal"
-            elif name == 'Unemployment':
-                status = "elevated" if latest.value > 5 else "caution" if latest.value > 4.5 else "normal"
-            
-            results.append({
-                "indicator": name,
-                "current_value": round(float(latest.value), 2) if latest.value is not None else None,
-                "change_1m": round(float(change_1m), 3) if change_1m is not None else None,
-                "trend": trend,
-                "status": status,
-                "date": latest.date.isoformat() if latest.date else None,
-            })
-        
-        if results:
-            logger.info(f"Returning {len(results)} macro indicators")
-            return results
-    
-    except Exception as e:
-        logger.warning(f"Macro query error: {e}")
-    
-    # Fallback
-    logger.info("Returning dummy macro data")
-    return [
-        {"indicator": "VIX", "current_value": 18.2, "change_1m": -1.5, "trend": "falling", "status": "normal", "date": datetime.now().isoformat()},
-        {"indicator": "CPI", "current_value": 3.1, "change_1m": -0.2, "trend": "falling", "status": "normal", "date": datetime.now().isoformat()},
-        {"indicator": "Unemployment", "current_value": 3.9, "change_1m": 0.1, "trend": "stable", "status": "normal", "date": datetime.now().isoformat()},
-        {"indicator": "Fed_Rate", "current_value": 4.50, "change_1m": 0.0, "trend": "stable", "status": "normal", "date": datetime.now().isoformat()},
-        {"indicator": "Yield_Curve", "current_value": 0.15, "change_1m": 0.10, "trend": "rising", "status": "caution", "date": datetime.now().isoformat()},
-    ]
+    indicators = fred_service.get_macro_indicators()
+
+    return {
+        "status": "deprecated",
+        "message": "Use /api/macro-indicators for canonical validated macro data.",
+        "canonical_endpoint": "/api/macro-indicators",
+        "data": indicators,
+        "last_updated": datetime.now().isoformat(),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1022,34 +1035,21 @@ def get_macro_dashboard(db: Session = Depends(get_db)):
 @app.get("/api/regime")
 def get_market_regime(db: Session = Depends(get_db)):
     """
-    Get current market regime.
-    
-    NOTE: For unified regime across all pages, use /api/market-status instead.
+    Legacy regime endpoint shim backed by canonical unified market status.
     """
-    try:
-        state = get_regime_state(db)
-        
-        return {
-            "regime": state['regime'],
-            "confidence": state['confidence'],
-            "vix": state['vix'],
-            "inflation": state['inflation'],
-            "unemployment": state['unemployment'],
-            "yield_curve": state['yield_curve'],
-            "date": datetime.now().isoformat(),
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in regime endpoint: {e}")
-        return {
-            "regime": "volatile",
-            "confidence": 0.5,
-            "vix": 18.0,
-            "inflation": 3.0,
-            "unemployment": 4.0,
-            "yield_curve": 0.5,
-            "date": datetime.now().isoformat(),
-        }
+    state = get_regime_state(db)
+    return {
+        "status": "deprecated",
+        "message": "Use /api/market-status for canonical market regime.",
+        "canonical_endpoint": "/api/market-status",
+        "regime": state['regime'].upper(),
+        "confidence": state['confidence'],
+        "vix": state['vix'],
+        "inflation": state['inflation'],
+        "unemployment": state['unemployment'],
+        "yield_curve": state['yield_curve'],
+        "last_updated": state.get('last_updated', datetime.now().isoformat()),
+    }
 
 
 # ═══════════════════════════════════════════════════════════════

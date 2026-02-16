@@ -36,45 +36,55 @@ class FREDDataService:
     def get_macro_indicators(self) -> Dict:
         """
         Fetch all macro indicators with proper validation.
-        
+
         Returns:
-            Dict with validated indicators or None if data unavailable
+            Dict with validated indicators and explicit warning metadata.
         """
+        indicators = {}
+        warnings = []
+
+        def collect(key: str, fetcher, fallback_builder):
+            value = fetcher()
+            if value:
+                indicators[key] = value
+            else:
+                warning = f"{key} unavailable or failed validation; fallback applied"
+                warnings.append(warning)
+                indicators[key] = fallback_builder(warning)
+
         try:
-            indicators = {}
-            
-            # CPI - CRITICAL FIX
-            cpi_data = self._get_cpi_yoy()
-            if cpi_data:
-                indicators['cpi'] = cpi_data
-            
-            # Unemployment Rate
-            unrate_data = self._get_unemployment()
-            if unrate_data:
-                indicators['unemployment'] = unrate_data
-            
-            # GDP Growth
-            gdp_data = self._get_gdp_growth()
-            if gdp_data:
-                indicators['gdp_growth'] = gdp_data
-            
-            # Yield Curve
-            yield_data = self._get_yield_curve()
-            if yield_data:
-                indicators['yield_curve'] = yield_data
-            
-            # Fed Funds Rate
-            fed_funds = self._get_fed_funds_rate()
-            if fed_funds:
-                indicators['fed_funds_rate'] = fed_funds
-            
-            logger.info(f"Successfully fetched {len(indicators)} macro indicators")
+            collect('cpi', self._get_cpi_yoy, lambda w: self._default_indicator_payload('CPI Year-over-Year', 3.0, w))
+            collect('unemployment', self._get_unemployment, lambda w: self._default_indicator_payload('Unemployment Rate', 4.0, w))
+            collect('gdp_growth', self._get_gdp_growth, lambda w: self._default_indicator_payload('GDP Growth (Annualized)', 2.0, w))
+            collect('yield_curve', self._get_yield_curve, self._default_yield_curve_payload)
+            collect('fed_funds_rate', self._get_fed_funds_rate, lambda w: self._default_indicator_payload('Federal Funds Rate', 5.0, w))
+
+            if warnings:
+                indicators['warning_state'] = {
+                    'has_warnings': True,
+                    'messages': warnings,
+                    'severity': 'warning',
+                }
+            else:
+                indicators['warning_state'] = {
+                    'has_warnings': False,
+                    'messages': [],
+                    'severity': 'none',
+                }
+
+            logger.info("Successfully fetched %s macro indicators (%s warnings)", len(indicators), len(warnings))
             return indicators
-            
+
         except Exception as e:
             logger.error(f"Error fetching macro indicators: {e}")
-            return self._get_default_indicators()
-    
+            defaults = self._get_default_indicators()
+            defaults['warning_state'] = {
+                'has_warnings': True,
+                'messages': [f"FRED fetch failure: {e}"],
+                'severity': 'error',
+            }
+            return defaults
+
     def _get_cpi_yoy(self) -> Optional[Dict]:
         """
         Fetch CPI and calculate Year-over-Year percentage change.
@@ -323,6 +333,29 @@ class FREDDataService:
         else:
             return "Steep curve - growth expected"
     
+    def _default_indicator_payload(self, label: str, value: float, warning: str) -> Dict:
+        return {
+            'value': round(value, 2),
+            'unit': '%',
+            'label': f'{label} (fallback)',
+            'interpretation': 'Fallback value used',
+            'warning': warning,
+            'date': datetime.now().strftime('%Y-%m-%d'),
+        }
+
+    def _default_yield_curve_payload(self, warning: str) -> Dict:
+        return {
+            'yield_10y': 4.0,
+            'yield_2y': 4.5,
+            'spread': -0.5,
+            'unit': '%',
+            'label': 'Yield Curve (10Y - 2Y) (fallback)',
+            'interpretation': 'Fallback value used',
+            'inverted': True,
+            'warning': warning,
+            'date': datetime.now().strftime('%Y-%m-%d'),
+        }
+
     def _get_default_indicators(self) -> Dict:
         """Return safe default indicators when FRED is unavailable"""
         logger.warning("Using default macro indicators")
@@ -340,5 +373,6 @@ class FREDDataService:
                 'inverted': True
             },
             'fed_funds_rate': {'value': 5.0, 'unit': '%', 'label': 'Fed Funds (default)'},
-            'note': 'Default data - FRED API unavailable'
+            'note': 'Default data - FRED API unavailable',
+            'warning_state': {'has_warnings': True, 'messages': ['Using default macro indicators'], 'severity': 'error'}
         }
