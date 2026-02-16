@@ -13,9 +13,10 @@ from database import (
     CrashPrediction, StockPrediction, CrashEstimate, BacktestResult
 )
 from engine import (
-    analyze_sentiment, detect_regime, run_multi_scenario_simulation,
+    analyze_sentiment, run_multi_scenario_simulation,
     project_stock, estimate_crash_timeline, run_backtest, SECTOR_MAP
 )
+from services.unified_market_state import unified_market_state
 import os
 from dotenv import load_dotenv
 import requests
@@ -111,14 +112,25 @@ class DataFetcher:
         }
 
         today = datetime.now()
-        start_date = (today - timedelta(days=60)).strftime('%Y-%m-%d')
+        default_start_date = (today - timedelta(days=60)).strftime('%Y-%m-%d')
 
         for fred_code, name in indicators.items():
             try:
+                start_date = default_start_date
+                if fred_code == 'CPIAUCSL':
+                    # Need at least 13 months for YoY change.
+                    start_date = (today - timedelta(days=450)).strftime('%Y-%m-%d')
+
                 data = fred.get_series(fred_code, start_date=start_date)
+
+                if fred_code == 'CPIAUCSL':
+                    data = data.pct_change(12) * 100
+                    data = data.dropna()
+
                 for date, value in data.items():
                     if pd.isna(value):
                         continue
+
                     exists = self.db.query(MacroData).filter(
                         MacroData.date == date,
                         MacroData.indicator == name,
@@ -280,7 +292,9 @@ class DataFetcher:
         fed_rate = self._get_latest_indicator('Fed_Rate')
         yield_curve = self._get_latest_indicator('Yield_Curve')
 
-        regime, confidence = detect_regime(vix, inflation, unemployment, yield_curve)
+        state = unified_market_state.get_market_state()
+        regime = state.get('regime', 'VOLATILE').lower()
+        confidence = float(state.get('confidence', 0.5))
 
         self.db.add(MarketRegime(
             date=datetime.now(),

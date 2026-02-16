@@ -14,7 +14,7 @@ import {
   IconButton,
   Chip,
 } from '@mui/material';
-import { Grid } from '@mui/material'; // ✅ Grid2 migration
+import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPortfolio, removeFromPortfolio } from '../services/api';
 import RegimeBanner from '../components/RegimeBanner';
