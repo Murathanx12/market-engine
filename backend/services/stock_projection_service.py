@@ -36,8 +36,14 @@ class StockProjectionService:
             # Sanity bounds
             mu = np.clip(mu, -0.50, 0.50)  # -50% to +50% annual
             sigma = np.clip(sigma, 0.10, 1.20)  # 10% to 120% vol
-            
-            logger.info(f"{ticker}: mu={mu:.3f}, sigma={sigma:.3f}, price=${current:.2f}")
+
+            # Bayesian shrinkage toward market prior
+            # Prevents outlier tickers from producing extreme projections
+            MARKET_MU = 0.08   # S&P 500 long-run average ~8% annual
+            SHRINKAGE = 0.3    # 30% pull toward market mean
+            mu = mu * (1 - SHRINKAGE) + MARKET_MU * SHRINKAGE
+
+            logger.info(f"{ticker}: mu={mu:.3f} (shrunk), sigma={sigma:.3f}, price=${current:.2f}")
             
             return (mu, sigma, current)
             
@@ -90,8 +96,16 @@ class StockProjectionService:
                 '1825d': 1825  # 5 years
             }
             
+            # Horizon-dependent caps — short horizons get tighter limits
+            HORIZON_CAPS = {
+                '30d':   1.5,   # max 50% in 1 month
+                '180d':  2.0,   # max 100% in 6 months
+                '365d':  2.5,   # max 150% in 1 year
+                '1825d': 4.0,   # max 300% in 5 years
+            }
+
             projections = {}
-            
+
             for name, days in horizons.items():
                 paths = StockProjectionService.simulate_gbm(
                     S0=current_price,
@@ -100,14 +114,15 @@ class StockProjectionService:
                     days=days,
                     n_sims=2000
                 )
-                
+
                 # Median projection (more robust than mean)
                 median_price = np.median(paths[:, -1])
-                
-                # Apply TAM cap (optional - prevents absurd projections)
-                max_price = current_price * 3.0  # Max 3x in any period
+
+                # Apply horizon-specific cap
+                cap_multiplier = HORIZON_CAPS.get(name, 3.0)
+                max_price = current_price * cap_multiplier
                 median_price = min(median_price, max_price)
-                
+
                 projections[name] = round(float(median_price), 2)
             
             return {

@@ -10,7 +10,7 @@ import {
 import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery } from '@tanstack/react-query';
 import { getCrashEstimator } from '../services/api';
-import RegimeBanner from '../components/RegimeBanner';
+import { COLORS } from '../theme/darkTheme';
 import {
   XAxis,
   YAxis,
@@ -33,7 +33,7 @@ const CrashEstimator = () => {
   // Transform monthly probabilities for chart
   const chartData = React.useMemo(() => {
     if (!data?.monthly_probabilities) return [];
-    
+
     return data.monthly_probabilities.map((item) => ({
       month: item.month,
       probability: item.probability * 100, // Convert to percentage
@@ -43,24 +43,22 @@ const CrashEstimator = () => {
   // Find peak risk month
   const peakMonth = React.useMemo(() => {
     if (!chartData.length) return null;
-    return chartData.reduce((max, curr) => 
+    return chartData.reduce((max, curr) =>
       curr.probability > max.probability ? curr : max
     );
   }, [chartData]);
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
-      <RegimeBanner />
-
+    <Box sx={{ minHeight: '100vh', bgcolor: COLORS.bgVoid, color: COLORS.textPrimary }}>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold', color: COLORS.textPrimary }}>
           CRASH TIMELINE & ESTIMATOR
         </Typography>
 
         {/* Loading */}
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
-            <CircularProgress sx={{ color: 'primary.main' }} />
+            <CircularProgress sx={{ color: COLORS.emerald }} />
           </Box>
         )}
 
@@ -76,8 +74,8 @@ const CrashEstimator = () => {
           <Grid container spacing={3}>
             {/* Key Metrics */}
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 4, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <Typography variant="overline" color="text.secondary">
+              <Paper sx={{ p: 4, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                   1-Year Crash Probability
                 </Typography>
                 <Typography
@@ -85,7 +83,7 @@ const CrashEstimator = () => {
                   sx={{
                     my: 2,
                     fontWeight: 'bold',
-                    color: data.total_crash_probability_1y > 0.5 ? '#ff1744' : data.total_crash_probability_1y > 0.3 ? '#ffc107' : '#00e676',
+                    color: data.total_crash_probability_1y > 0.5 ? COLORS.crimson : data.total_crash_probability_1y > 0.3 ? COLORS.amber : COLORS.emerald,
                   }}
                 >
                   {(data.total_crash_probability_1y * 100).toFixed(1)}%
@@ -94,8 +92,8 @@ const CrashEstimator = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 4, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <Typography variant="overline" color="text.secondary">
+              <Paper sx={{ p: 4, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                   5-Year Crash Probability
                 </Typography>
                 <Typography
@@ -103,7 +101,7 @@ const CrashEstimator = () => {
                   sx={{
                     my: 2,
                     fontWeight: 'bold',
-                    color: '#ffc107',
+                    color: COLORS.amber,
                   }}
                 >
                   {(data.total_crash_probability_5y * 100).toFixed(1)}%
@@ -112,8 +110,8 @@ const CrashEstimator = () => {
             </Grid>
 
             <Grid size={{ xs: 12, md: 4 }}>
-              <Paper sx={{ p: 4, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <Typography variant="overline" color="text.secondary">
+              <Paper sx={{ p: 4, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                   Peak Risk Month
                 </Typography>
                 <Typography
@@ -121,12 +119,12 @@ const CrashEstimator = () => {
                   sx={{
                     my: 2,
                     fontWeight: 'bold',
-                    color: '#ff1744',
+                    color: COLORS.crimson,
                   }}
                 >
                   {data.peak_risk_month || 'N/A'}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{ color: COLORS.textSecondary }}>
                   Months from now
                 </Typography>
               </Paper>
@@ -135,25 +133,25 @@ const CrashEstimator = () => {
             {/* Contributing Factors */}
             {data.contributing_factors && data.contributing_factors.length > 0 && (
               <Grid size={{ xs: 12 }}>
-                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
-                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <WarningIcon sx={{ color: '#ffc107' }} />
+                <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}` }}>
+                  <Typography variant="h6" sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1, color: COLORS.textPrimary }}>
+                    <WarningIcon sx={{ color: COLORS.amber }} />
                     Contributing Risk Factors
                   </Typography>
                   <Grid container spacing={2}>
                     {data.contributing_factors.map((factor, idx) => (
                       <Grid size={{ xs: 12, md: 6 }} key={idx}>
-                        <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
+                        <Box sx={{ p: 2, bgcolor: COLORS.bgElevated, borderRadius: 1 }}>
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                            <Typography variant="body1" sx={{ fontWeight: 'bold', color: COLORS.textPrimary }}>
                               {factor.factor}
                             </Typography>
                             <Chip
                               label={`${(factor.weight * 100).toFixed(0)}%`}
                               size="small"
                               sx={{
-                                bgcolor: factor.weight > 0.3 ? '#ff1744' : factor.weight > 0.15 ? '#ffc107' : '#888',
-                                color: 'text.primary',
+                                bgcolor: factor.weight > 0.3 ? COLORS.crimsonDim : factor.weight > 0.15 ? COLORS.amberDim : COLORS.bgHighlight,
+                                color: factor.weight > 0.3 ? COLORS.crimson : factor.weight > 0.15 ? COLORS.amber : COLORS.textSecondary,
                                 fontWeight: 'bold',
                               }}
                             />
@@ -162,7 +160,7 @@ const CrashEstimator = () => {
                             sx={{
                               width: '100%',
                               height: '8px',
-                              bgcolor: '#0a0a0a',
+                              bgcolor: COLORS.bgDeep,
                               borderRadius: 1,
                               overflow: 'hidden',
                             }}
@@ -171,7 +169,7 @@ const CrashEstimator = () => {
                               sx={{
                                 width: `${factor.weight * 100}%`,
                                 height: '100%',
-                                bgcolor: factor.weight > 0.3 ? '#ff1744' : factor.weight > 0.15 ? '#ffc107' : '#888',
+                                bgcolor: factor.weight > 0.3 ? COLORS.crimson : factor.weight > 0.15 ? COLORS.amber : COLORS.textMuted,
                                 transition: 'width 0.3s ease',
                               }}
                             />
@@ -187,42 +185,42 @@ const CrashEstimator = () => {
             {/* Timeline Chart */}
             {chartData.length > 0 && (
               <Grid size={{ xs: 12 }}>
-                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
-                  <Typography variant="h6" sx={{ mb: 2 }}>
+                <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}` }}>
+                  <Typography variant="h6" sx={{ mb: 2, color: COLORS.textPrimary }}>
                     Crash Probability Timeline (Next 60 Months)
                   </Typography>
                   <ResponsiveContainer width="100%" height={400}>
                     <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="colorCrash" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#ff1744" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#ff1744" stopOpacity={0} />
+                          <stop offset="5%" stopColor={COLORS.crimson} stopOpacity={0.4} />
+                          <stop offset="95%" stopColor={COLORS.crimson} stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={COLORS.borderSubtle} vertical={false} />
                       <XAxis
                         dataKey="month"
-                        stroke="#64748b"
-                        tick={{ fill: '#64748b', fontSize: 12 }}
-                        label={{ value: 'Months from Now', position: 'insideBottom', offset: -5, fill: '#64748b' }}
+                        stroke={COLORS.textMuted}
+                        tick={{ fill: COLORS.textMuted, fontSize: 12 }}
+                        label={{ value: 'Months from Now', position: 'insideBottom', offset: -5, fill: COLORS.textSecondary }}
                       />
                       <YAxis
-                        stroke="#64748b"
-                        tick={{ fill: '#64748b' }}
+                        stroke={COLORS.textMuted}
+                        tick={{ fill: COLORS.textMuted }}
                         domain={[0, 100]}
                         tickFormatter={(val) => `${val}%`}
-                        label={{ value: 'Crash Probability', angle: -90, position: 'insideLeft', fill: '#64748b' }}
+                        label={{ value: 'Crash Probability', angle: -90, position: 'insideLeft', fill: COLORS.textSecondary }}
                       />
                       <Tooltip
-                        contentStyle={{ backgroundColor: '#ffffff', border: '1px solid #e2e8f0', color: 'text.primary' }}
+                        contentStyle={{ backgroundColor: COLORS.bgElevated, border: `1px solid ${COLORS.borderSubtle}`, color: COLORS.textPrimary }}
                         formatter={(value) => [`${value.toFixed(1)}%`, 'Crash Probability']}
                         labelFormatter={(label) => `Month ${label}`}
                       />
-                      <Legend />
+                      <Legend wrapperStyle={{ color: COLORS.textSecondary }} />
                       <Area
                         type="monotone"
                         dataKey="probability"
-                        stroke="#ff1744"
+                        stroke={COLORS.crimson}
                         strokeWidth={2}
                         fillOpacity={1}
                         fill="url(#colorCrash)"
@@ -232,10 +230,10 @@ const CrashEstimator = () => {
                   </ResponsiveContainer>
 
                   {peakMonth && (
-                    <Box sx={{ mt: 2, p: 2, bgcolor: '#f8fafc', borderRadius: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        <strong>Peak Risk:</strong> Month {peakMonth.month} shows the highest crash probability 
-                        at {peakMonth.probability.toFixed(1)}%. The model estimates elevated risk during this period 
+                    <Box sx={{ mt: 2, p: 2, bgcolor: COLORS.bgElevated, borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ color: COLORS.textSecondary }}>
+                        <strong>Peak Risk:</strong> Month {peakMonth.month} shows the highest crash probability
+                        at {peakMonth.probability.toFixed(1)}%. The model estimates elevated risk during this period
                         based on current market conditions and historical patterns.
                       </Typography>
                     </Box>

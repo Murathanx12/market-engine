@@ -12,7 +12,7 @@ import {
 import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery } from '@tanstack/react-query';
 import { getMacroIndicatorsValidated } from '../services/api';
-import RegimeBanner from '../components/RegimeBanner';
+import { COLORS } from '../theme/darkTheme';
 import CloseIcon from '@mui/icons-material/Close';
 
 const MacroDashboard = () => {
@@ -30,17 +30,15 @@ const MacroDashboard = () => {
   );
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
-      <RegimeBanner />
-
+    <Box sx={{ minHeight: '100vh', bgcolor: COLORS.bgVoid, color: COLORS.textPrimary }}>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold', color: COLORS.textPrimary }}>
           MACRO DASHBOARD
         </Typography>
 
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
-            <CircularProgress sx={{ color: '#00d4ff' }} />
+            <CircularProgress sx={{ color: COLORS.emerald }} />
           </Box>
         )}
 
@@ -52,8 +50,8 @@ const MacroDashboard = () => {
 
         {indicators.length > 0 && (
           <>
-            <Typography variant="h6" sx={{ mb: 2, color: '#00d4ff' }}>
-              ✅ CANONICAL VALIDATED MACRO INDICATORS
+            <Typography variant="h6" sx={{ mb: 2, color: COLORS.emerald }}>
+              CANONICAL VALIDATED MACRO INDICATORS
             </Typography>
             <Grid container spacing={3} sx={{ mb: 4 }}>
               {indicators.map(([key, indicator]) => (
@@ -61,30 +59,30 @@ const MacroDashboard = () => {
                   <Paper
                     sx={{
                       p: 2.5,
-                      bgcolor: '#111',
-                      border: '1px solid #333',
+                      bgcolor: COLORS.bgCard,
+                      border: `1px solid ${COLORS.borderSubtle}`,
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                       '&:hover': {
-                        borderColor: '#00d4ff',
+                        borderColor: COLORS.borderActive,
                         transform: 'translateY(-4px)',
                       },
                     }}
                     onClick={() => setSelectedIndicator(indicator)}
                   >
-                    <Typography variant="overline" color="text.secondary">
+                    <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                       {indicator.label}
                     </Typography>
 
                     <Typography
                       variant="h4"
-                      sx={{ my: 1.5, fontWeight: 'bold', color: '#00d4ff' }}
+                      sx={{ my: 1.5, fontWeight: 'bold', color: COLORS.emerald }}
                     >
                       {indicator.value ?? indicator.spread}
                       {indicator.unit}
                     </Typography>
 
-                    <Typography variant="caption" sx={{ color: '#888' }}>
+                    <Typography variant="caption" sx={{ color: COLORS.textMuted }}>
                       {indicator.interpretation}
                     </Typography>
 
@@ -95,7 +93,7 @@ const MacroDashboard = () => {
                     )}
 
                     {indicator.date && (
-                      <Typography variant="caption" display="block" sx={{ mt: 1, color: '#666' }}>
+                      <Typography variant="caption" display="block" sx={{ mt: 1, color: COLORS.textMuted }}>
                         As of {new Date(indicator.date).toLocaleDateString()}
                       </Typography>
                     )}
@@ -106,8 +104,8 @@ const MacroDashboard = () => {
                         size="small"
                         sx={{
                           mt: 1,
-                          bgcolor: indicator.inverted ? '#ff1744' : '#00e676',
-                          color: '#fff',
+                          bgcolor: indicator.inverted ? COLORS.crimson : COLORS.emerald,
+                          color: COLORS.textPrimary,
                           fontWeight: 'bold',
                         }}
                       />
@@ -138,27 +136,27 @@ const MacroDashboard = () => {
             maxHeight: '90vh',
             overflow: 'auto',
             p: 4,
-            bgcolor: '#111',
-            border: '1px solid #333',
+            bgcolor: COLORS.bgCard,
+            border: `1px solid ${COLORS.borderSubtle}`,
           }}
         >
           {selectedIndicator && (
             <>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-                <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+                <Typography variant="h5" sx={{ fontWeight: 'bold', color: COLORS.textPrimary }}>
                   {selectedIndicator.label}
                 </Typography>
-                <IconButton onClick={() => setSelectedIndicator(null)} sx={{ color: '#fff' }}>
+                <IconButton onClick={() => setSelectedIndicator(null)} sx={{ color: COLORS.textPrimary }}>
                   <CloseIcon />
                 </IconButton>
               </Box>
 
               <Grid container spacing={3}>
                 <Grid size={{ xs: 12, md: 6 }}>
-                  <Typography variant="overline" color="text.secondary">
+                  <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                     Current Value
                   </Typography>
-                  <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#00d4ff', mb: 2 }}>
+                  <Typography variant="h3" sx={{ fontWeight: 'bold', color: COLORS.emerald, mb: 2 }}>
                     {selectedIndicator.value ?? selectedIndicator.spread}
                     {selectedIndicator.unit}
                   </Typography>
@@ -166,18 +164,18 @@ const MacroDashboard = () => {
 
                 {selectedIndicator.raw_index && (
                   <Grid size={{ xs: 12, md: 6 }}>
-                    <Typography variant="overline" color="text.secondary">
+                    <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                       Raw Index Value
                     </Typography>
-                    <Typography variant="h3" sx={{ fontWeight: 'bold', color: '#888', mb: 2 }}>
+                    <Typography variant="h3" sx={{ fontWeight: 'bold', color: COLORS.textMuted, mb: 2 }}>
                       {selectedIndicator.raw_index}
                     </Typography>
                   </Grid>
                 )}
               </Grid>
 
-              <Box sx={{ mt: 3, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
-                <Typography variant="body1" sx={{ color: '#ccc' }}>
+              <Box sx={{ mt: 3, p: 2, bgcolor: COLORS.bgElevated, borderRadius: 1 }}>
+                <Typography variant="body1" sx={{ color: COLORS.textSecondary }}>
                   {selectedIndicator.interpretation}
                 </Typography>
               </Box>

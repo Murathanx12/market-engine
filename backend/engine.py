@@ -512,9 +512,16 @@ def build_composite_risk_indicator(df: pd.DataFrame) -> pd.Series:
 def detect_regime(vix: float = None, inflation: float = None,
                   unemployment: float = None, yield_curve: float = None) -> Tuple[str, float]:
     """
-    Detect market regime from current macro indicators.
-    Returns (regime_name, confidence).
+    DEPRECATED: Use unified_market_state.get_market_state() instead.
+    This function uses simple heuristics. The unified service uses HMM-based detection.
+    Kept as fallback only.
     """
+    import warnings
+    warnings.warn(
+        "detect_regime() is deprecated. Use unified_market_state.get_market_state() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     if vix is not None and vix > 35:
         return 'crisis', 0.9
     elif vix is not None and vix > 25:

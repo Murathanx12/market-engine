@@ -13,6 +13,7 @@ import json
 import logging
 import traceback
 import uuid
+import time
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -61,6 +62,8 @@ if run_daily_update is None:
 from services.market_state_service import market_state_service
 from services.fred_data_service import FREDDataService
 from services.monte_carlo_service import monte_carlo_service
+from services.net_liquidity_service import net_liquidity_service
+from services.backtest_service import backtest_service
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIGURATION
@@ -90,6 +93,23 @@ app.add_middleware(
 # Initialize FRED service
 FRED_API_KEY = os.getenv('FRED_API_KEY', '825bf1b26090df25fc3c20e36df6aa9f')
 fred_service = FREDDataService(FRED_API_KEY)
+
+# ═══════════════════════════════════════════════════════════════
+# IN-MEMORY TTL CACHE
+# ═══════════════════════════════════════════════════════════════
+
+_endpoint_cache = {}
+
+def _cache_get(key: str, ttl_seconds: int) -> dict | None:
+    """Return cached result if still valid, else None."""
+    entry = _endpoint_cache.get(key)
+    if entry and (time.time() - entry['time']) < ttl_seconds:
+        return entry['value']
+    return None
+
+def _cache_set(key: str, value):
+    """Store result in cache."""
+    _endpoint_cache[key] = {'value': value, 'time': time.time()}
 
 # ═══════════════════════════════════════════════════════════════
 # DEPENDENCY INJECTION
@@ -395,30 +415,24 @@ async def get_market_status_unified():
 @app.get("/api/macro-indicators")
 async def get_macro_indicators_validated():
     """
-    ⭐ NEW ENDPOINT - CRITICAL FIX ⭐
-    
-    Fetch validated macro indicators from FRED.
-    
-    This fixes the CPI hallucination bug where the dashboard 
-    showed "CPI: 326%" instead of "CPI: 3.2%".
-    
-    All values are now properly converted:
-    - CPI index → CPI Year-over-Year %
-    - Unemployment already in %
-    - Yields already in %
-    - GDP growth already in %
+    Validated macro indicators from FRED with 4-hour cache.
+    Fixes the CPI hallucination bug (326% → 3.2%).
     """
+    cached = _cache_get('macro_indicators', 14400)  # 4 hours
+    if cached:
+        return cached
+
     try:
         indicators = fred_service.get_macro_indicators()
-        
         logger.info(f"Fetched {len(indicators)} macro indicators")
-        
-        return {
+        result = {
             "status": "success",
             "data": indicators,
             "last_updated": datetime.now().isoformat()
         }
-        
+        _cache_set('macro_indicators', result)
+        return result
+
     except Exception as e:
         logger.error(f"Error in macro indicators endpoint: {e}", exc_info=True)
         return {
@@ -1175,9 +1189,10 @@ async def _get_real_top_movers(days: int) -> dict:
 @app.get("/api/analysis")
 @app.get("/api/weekly-report")
 async def get_analysis(timeframe: str = 'week'):
-    """
-    FIX: Use ^GSPC (S&P 500 INDEX) not SPY (ETF)
-    """
+    """Analysis with 1-hour cache. Uses ^GSPC (S&P 500 INDEX)."""
+    cached = _cache_get(f'analysis_{timeframe}', 3600)  # 1 hour
+    if cached:
+        return cached
     try:
         timeframe_days = {
             'week': 7, 'month': 30, '3m': 90,
@@ -1210,20 +1225,22 @@ async def get_analysis(timeframe: str = 'week'):
             f"VIX at {state['vix']:.1f}."
         )
         
-        return {
+        result = {
             "timeframe": timeframe,
             "sp500": {
-                "current": round(current, 2),  # Will be ~6,836 now
+                "current": round(current, 2),
                 "start": round(start, 2),
                 "return_pct": round(sp500_change * 100, 2),
             },
             "top_gainers": movers['gainers'][:5],
             "top_losers": movers['losers'][:5],
-            "regime": state['regime'],  # Uses unified state
+            "regime": state['regime'],
             "summary": summary,
             "prediction_accuracy": 72.5,
         }
-        
+        _cache_set(f'analysis_{timeframe}', result)
+        return result
+
     except Exception as e:
         logger.error(f"Analysis error: {e}", exc_info=True)
         return {"error": str(e)}
@@ -1448,6 +1465,61 @@ def run_backtest_limited(prices: pd.Series, start_year: int, n_sims: int = 500):
     }
 
 # ═══════════════════════════════════════════════════════════════
+# NET LIQUIDITY INDEX (WALCL - TGA - RRP)
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/net-liquidity")
+async def get_net_liquidity():
+    """
+    Federal Reserve Net Liquidity Index.
+    Formula: WALCL - (TGA + RRP)
+    Leading indicator for market regime shifts.
+    """
+    cached = _cache_get('net_liquidity', 86400)  # 24-hour cache
+    if cached:
+        return cached
+
+    try:
+        result = net_liquidity_service.get_net_liquidity()
+        _cache_set('net_liquidity', result)
+        return result
+    except Exception as e:
+        logger.error(f"Net liquidity error: {e}")
+        return net_liquidity_service._default_response()
+
+
+# ═══════════════════════════════════════════════════════════════
+# WALK-FORWARD BACKTEST (Enhanced)
+# ═══════════════════════════════════════════════════════════════
+
+@app.get("/api/backtest/walk-forward")
+async def get_walk_forward_backtest(start_year: int = 2005):
+    """
+    Walk-forward backtest from start_year to present.
+    Uses only data available at each prediction date (no lookahead).
+    """
+    if start_year < 2000:
+        raise HTTPException(400, "Start year must be >= 2000")
+    if start_year > 2024:
+        raise HTTPException(400, "Start year must be <= 2024")
+
+    cached = _cache_get(f'walkforward_{start_year}', 86400)  # 24-hour cache
+    if cached:
+        return cached
+
+    try:
+        result = backtest_service.run_walk_forward(
+            start_year=start_year,
+            n_sims=500,
+        )
+        _cache_set(f'walkforward_{start_year}', result)
+        return result
+    except Exception as e:
+        logger.error(f"Walk-forward backtest error: {e}")
+        raise HTTPException(500, f"Backtest failed: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════
 # ADMIN / MAINTENANCE
 # ═══════════════════════════════════════════════════════════════
 
@@ -1476,15 +1548,40 @@ def trigger_data_update():
 
 @app.on_event("startup")
 async def startup():
-    """Initialize database on startup."""
+    """Initialize database and pre-warm caches on startup."""
     try:
         init_db()
-        logger.info("✅ Database initialized successfully")
-        logger.info("✅ Market Engine is online")
-        logger.info("✅ Key fixes: Unified regime, Validated FRED data, Robust errors")
+        logger.info("Database initialized successfully")
     except Exception as e:
-        logger.error(f"❌ Database initialization failed: {e}")
-        logger.error("⚠️  Application may not function correctly")
+        logger.error(f"Database initialization failed: {e}")
+        logger.error("Application may not function correctly")
+        return
+
+    # Pre-warm expensive caches so first user request is fast
+    import asyncio
+    asyncio.create_task(_prewarm_caches())
+
+
+async def _prewarm_caches():
+    """Background task to pre-warm market state and macro caches."""
+    import asyncio
+    await asyncio.sleep(2)  # Let the server finish binding
+    try:
+        state = unified_market_state.get_market_state()
+        logger.info(f"Pre-warmed market state: {state.get('regime', 'unknown')}")
+    except Exception as e:
+        logger.warning(f"Market state pre-warm failed: {e}")
+    try:
+        indicators = fred_service.get_macro_indicators()
+        _cache_set('macro_indicators', {
+            "status": "success",
+            "data": indicators,
+            "last_updated": datetime.now().isoformat()
+        })
+        logger.info(f"Pre-warmed macro indicators cache")
+    except Exception as e:
+        logger.warning(f"Macro indicator pre-warm failed: {e}")
+    logger.info("Market Engine is online — caches pre-warmed")
 
 
 @app.on_event("shutdown")
