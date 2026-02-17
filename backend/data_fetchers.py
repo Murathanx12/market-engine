@@ -30,6 +30,17 @@ logger = logging.getLogger(__name__)
 class DataFetcher:
     """Fetches all external data sources."""
 
+    # Sanity bounds for macro indicators — prevents corrupted FRED data from reaching DB
+    SANITY_BOUNDS = {
+        'CPI':          (-5.0,  20.0),   # YoY inflation %
+        'Unemployment': (2.0,   25.0),   # Unemployment rate %
+        'Fed_Rate':     (0.0,   25.0),   # Federal funds rate %
+        'Yield_Curve':  (-5.0,  5.0),    # 10Y-2Y spread
+        'VIX':          (5.0,   90.0),   # VIX index level
+        'Treasury_10Y': (0.0,   20.0),   # 10Y yield %
+        'Treasury_2Y':  (0.0,   20.0),   # 2Y yield %
+    }
+
     def __init__(self):
         self.db = SessionLocal()
         self.fred_key = os.getenv("FRED_API_KEY")
@@ -37,6 +48,19 @@ class DataFetcher:
 
     def close(self):
         self.db.close()
+
+    def _validate_macro_value(self, indicator_name: str, value: float) -> bool:
+        """Validate macro value against sanity bounds. Returns True if valid."""
+        bounds = self.SANITY_BOUNDS.get(indicator_name)
+        if bounds is None:
+            return True
+        low, high = bounds
+        if low <= value <= high:
+            return True
+        logger.warning(
+            f"[ANOMALY] {indicator_name}={value:.4f} outside bounds ({low}, {high}). Skipping."
+        )
+        return False
 
     # ─── Stock Data ────────────────────────────────────────────────
 
@@ -131,13 +155,17 @@ class DataFetcher:
                     if pd.isna(value):
                         continue
 
+                    val = float(value)
+                    if not self._validate_macro_value(name, val):
+                        continue
+
                     exists = self.db.query(MacroData).filter(
                         MacroData.date == date,
                         MacroData.indicator == name,
                     ).first()
                     if not exists:
                         self.db.add(MacroData(
-                            date=date, indicator=name, value=float(value)
+                            date=date, indicator=name, value=val
                         ))
                 print(f"  ✅ {name}")
             except Exception as e:
@@ -162,6 +190,9 @@ class DataFetcher:
                     if name == 'Treasury_10Y':
                         value = value  # Already in % from ^TNX
 
+                    if not self._validate_macro_value(name, value):
+                        continue
+
                     exists = self.db.query(MacroData).filter(
                         MacroData.date >= now - timedelta(days=1),
                         MacroData.indicator == name,
@@ -185,15 +216,16 @@ class DataFetcher:
                 else:
                     curve_val -= 4.0  # Rough estimate
 
-                exists = self.db.query(MacroData).filter(
-                    MacroData.date >= now - timedelta(days=1),
-                    MacroData.indicator == 'Yield_Curve',
-                ).first()
-                if not exists:
-                    self.db.add(MacroData(
-                        date=now, indicator='Yield_Curve', value=curve_val
-                    ))
-                print(f"  ✅ Yield_Curve = {curve_val:.2f}")
+                if self._validate_macro_value('Yield_Curve', curve_val):
+                    exists = self.db.query(MacroData).filter(
+                        MacroData.date >= now - timedelta(days=1),
+                        MacroData.indicator == 'Yield_Curve',
+                    ).first()
+                    if not exists:
+                        self.db.add(MacroData(
+                            date=now, indicator='Yield_Curve', value=curve_val
+                        ))
+                    print(f"  ✅ Yield_Curve = {curve_val:.2f}")
         except Exception as e:
             print(f"  ❌ Yield_Curve: {e}")
 

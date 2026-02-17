@@ -171,6 +171,18 @@ export const getBacktestJobStatus = async (jobId) => {
   return response.data;
 };
 
+// Net Liquidity (WALCL - TGA - RRP)
+export const getNetLiquidity = async () => {
+  const response = await api.get('/api/net-liquidity');
+  return response.data;
+};
+
+// Walk-Forward Backtest (enhanced)
+export const getWalkForwardBacktest = async (startYear = 2005) => {
+  const response = await api.get(`/api/backtest/walk-forward?start_year=${startYear}`);
+  return response.data;
+};
+
 // Trigger Data Update
 export const triggerDataUpdate = async () => {
   const response = await api.post('/api/update-data');

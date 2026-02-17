@@ -17,7 +17,7 @@ import {
 import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPortfolio, removeFromPortfolio } from '../services/api';
-import RegimeBanner from '../components/RegimeBanner';
+import { COLORS } from '../theme/darkTheme';
 import DeleteIcon from '@mui/icons-material/Delete';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
@@ -45,17 +45,15 @@ const Portfolio = () => {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
-      <RegimeBanner />
-
+    <Box sx={{ minHeight: '100vh', bgcolor: COLORS.bgVoid, color: COLORS.textPrimary }}>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold', color: COLORS.textPrimary }}>
           PORTFOLIO
         </Typography>
 
         {isLoading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
-            <CircularProgress sx={{ color: 'primary.main' }} />
+            <CircularProgress sx={{ color: COLORS.emerald }} />
           </Box>
         )}
 
@@ -70,30 +68,30 @@ const Portfolio = () => {
             {/* Summary Cards */}
             <Grid container spacing={3} sx={{ mb: 3 }}>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                  <Typography variant="overline" color="text.secondary">
+                <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                  <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                     Total Value
                   </Typography>
-                  <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: 'primary.main' }}>
+                  <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: COLORS.emerald }}>
                     ${data.total_value?.toFixed(2) || '0.00'}
                   </Typography>
                 </Paper>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                  <Typography variant="overline" color="text.secondary">
+                <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                  <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                     Total Cost
                   </Typography>
-                  <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold' }}>
+                  <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: COLORS.textPrimary }}>
                     ${data.total_cost?.toFixed(2) || '0.00'}
                   </Typography>
                 </Paper>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                  <Typography variant="overline" color="text.secondary">
+                <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                  <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                     Total Gain/Loss
                   </Typography>
                   <Typography
@@ -101,7 +99,7 @@ const Portfolio = () => {
                     sx={{
                       my: 1,
                       fontWeight: 'bold',
-                      color: data.total_gain_loss >= 0 ? '#00e676' : '#ff1744',
+                      color: data.total_gain_loss >= 0 ? COLORS.emerald : COLORS.crimson,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -116,8 +114,8 @@ const Portfolio = () => {
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Paper sx={{ p: 3, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                  <Typography variant="overline" color="text.secondary">
+                <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                  <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                     Return %
                   </Typography>
                   <Typography
@@ -125,7 +123,7 @@ const Portfolio = () => {
                     sx={{
                       my: 1,
                       fontWeight: 'bold',
-                      color: data.total_gain_loss_pct >= 0 ? '#00e676' : '#ff1744',
+                      color: data.total_gain_loss_pct >= 0 ? COLORS.emerald : COLORS.crimson,
                     }}
                   >
                     {data.total_gain_loss_pct >= 0 ? '+' : ''}
@@ -137,44 +135,44 @@ const Portfolio = () => {
 
             {/* Holdings Table */}
             {data.holdings && data.holdings.length > 0 ? (
-              <Paper sx={{ bgcolor: 'background.paper', border: '1px solid #e2e8f0' }}>
+              <Paper sx={{ bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}` }}>
                 <TableContainer>
                   <Table>
                     <TableHead>
                       <TableRow>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }}>Ticker</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="right">Shares</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="right">Avg Cost</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="right">Current Price</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="right">Market Value</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="right">Gain/Loss</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="right">Return %</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="center">Sector</TableCell>
-                        <TableCell sx={{ color: 'text.secondary', fontWeight: 'bold' }} align="center">Actions</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }}>Ticker</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="right">Shares</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="right">Avg Cost</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="right">Current Price</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="right">Market Value</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="right">Gain/Loss</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="right">Return %</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="center">Sector</TableCell>
+                        <TableCell sx={{ color: COLORS.textMuted, fontWeight: 'bold' }} align="center">Actions</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
                       {data.holdings.map((holding) => (
-                        <TableRow key={holding.id} sx={{ '&:hover': { bgcolor: '#f8fafc' } }}>
-                          <TableCell sx={{ color: 'text.primary', fontWeight: 'bold', fontSize: '1rem' }}>
+                        <TableRow key={holding.id} sx={{ '&:hover': { bgcolor: COLORS.bgElevated } }}>
+                          <TableCell sx={{ color: COLORS.textPrimary, fontWeight: 'bold', fontSize: '1rem' }}>
                             {holding.ticker}
                           </TableCell>
-                          <TableCell align="right" sx={{ color: 'text.primary' }}>
+                          <TableCell align="right" sx={{ color: COLORS.textPrimary }}>
                             {holding.shares}
                           </TableCell>
-                          <TableCell align="right" sx={{ color: 'text.secondary' }}>
+                          <TableCell align="right" sx={{ color: COLORS.textSecondary }}>
                             ${holding.purchase_price?.toFixed(2)}
                           </TableCell>
-                          <TableCell align="right" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                          <TableCell align="right" sx={{ color: COLORS.emerald, fontWeight: 'bold' }}>
                             ${holding.current_price?.toFixed(2)}
                           </TableCell>
-                          <TableCell align="right" sx={{ color: 'text.primary', fontWeight: 'bold' }}>
+                          <TableCell align="right" sx={{ color: COLORS.textPrimary, fontWeight: 'bold' }}>
                             ${holding.market_value?.toFixed(2)}
                           </TableCell>
                           <TableCell
                             align="right"
                             sx={{
-                              color: holding.gain_loss >= 0 ? '#00e676' : '#ff1744',
+                              color: holding.gain_loss >= 0 ? COLORS.emerald : COLORS.crimson,
                               fontWeight: 'bold',
                             }}
                           >
@@ -184,7 +182,7 @@ const Portfolio = () => {
                           <TableCell
                             align="right"
                             sx={{
-                              color: holding.gain_loss_pct >= 0 ? '#00e676' : '#ff1744',
+                              color: holding.gain_loss_pct >= 0 ? COLORS.emerald : COLORS.crimson,
                               fontWeight: 'bold',
                             }}
                           >
@@ -196,8 +194,8 @@ const Portfolio = () => {
                               label={holding.sector}
                               size="small"
                               sx={{
-                                bgcolor: '#f8fafc',
-                                color: 'text.secondary',
+                                bgcolor: COLORS.bgElevated,
+                                color: COLORS.textSecondary,
                                 fontSize: '0.7rem',
                               }}
                             />
@@ -207,7 +205,7 @@ const Portfolio = () => {
                               size="small"
                               onClick={() => handleDelete(holding.id)}
                               disabled={deleteMutation.isLoading}
-                              sx={{ color: '#ff1744' }}
+                              sx={{ color: COLORS.crimson }}
                             >
                               <DeleteIcon fontSize="small" />
                             </IconButton>
@@ -219,11 +217,11 @@ const Portfolio = () => {
                 </TableContainer>
               </Paper>
             ) : (
-              <Paper sx={{ p: 5, bgcolor: 'background.paper', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-                <Typography variant="h6" color="text.secondary" sx={{ mb: 1 }}>
+              <Paper sx={{ p: 5, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                <Typography variant="h6" sx={{ mb: 1, color: COLORS.textSecondary }}>
                   Your portfolio is empty
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{ color: COLORS.textMuted }}>
                   Go to Stock Tracker to add holdings
                 </Typography>
               </Paper>

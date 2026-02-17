@@ -12,7 +12,7 @@ import {
 import Grid from '@mui/material/Unstable_Grid2';
 import { useQuery } from '@tanstack/react-query';
 import { getAccuracyHistory, startBacktest, getBacktestJobStatus } from '../services/api';
-import RegimeBanner from '../components/RegimeBanner';
+import { COLORS } from '../theme/darkTheme';
 import {
   LineChart,
   Line,
@@ -120,17 +120,15 @@ const SimulationAccuracy = () => {
   }, [accuracyData]);
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#000', color: '#fff' }}>
-      <RegimeBanner />
-
+    <Box sx={{ minHeight: '100vh', bgcolor: COLORS.bgVoid, color: COLORS.textPrimary }}>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold' }}>
+        <Typography variant="h4" sx={{ mb: 3, fontWeight: 'bold', color: COLORS.textPrimary }}>
           ACCURACY TRACKING
         </Typography>
 
         {/* View Selector */}
-        <Paper sx={{ p: 3, mb: 3, bgcolor: '#111', border: '1px solid #333' }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Paper sx={{ p: 3, mb: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}` }}>
+          <Typography variant="body2" sx={{ mb: 2, color: COLORS.textSecondary }}>
             Select View
           </Typography>
           <ToggleButtonGroup
@@ -139,13 +137,13 @@ const SimulationAccuracy = () => {
             onChange={handleViewChange}
             sx={{
               '& .MuiToggleButton-root': {
-                color: '#888',
-                borderColor: '#444',
+                color: COLORS.textMuted,
+                borderColor: COLORS.borderSubtle,
                 '&.Mui-selected': {
-                  bgcolor: '#00d4ff',
+                  bgcolor: COLORS.emerald,
                   color: '#000',
                   fontWeight: 'bold',
-                  '&:hover': { bgcolor: '#00b8e6' },
+                  '&:hover': { bgcolor: '#00a37a' },
                 },
               },
             }}
@@ -162,7 +160,7 @@ const SimulationAccuracy = () => {
 
           {view === 'backtest' && (
             <Box sx={{ mt: 2 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+              <Typography variant="caption" sx={{ mb: 1, display: 'block', color: COLORS.textSecondary }}>
                 Start Year
               </Typography>
               <ToggleButtonGroup
@@ -172,11 +170,11 @@ const SimulationAccuracy = () => {
                 size="small"
                 sx={{
                   '& .MuiToggleButton-root': {
-                    color: '#888',
-                    borderColor: '#444',
+                    color: COLORS.textMuted,
+                    borderColor: COLORS.borderSubtle,
                     fontSize: '0.75rem',
                     '&.Mui-selected': {
-                      bgcolor: '#00d4ff',
+                      bgcolor: COLORS.emerald,
                       color: '#000',
                       fontWeight: 'bold',
                     },
@@ -199,7 +197,7 @@ const SimulationAccuracy = () => {
             {/* Loading */}
             {accuracyLoading && (
               <Box sx={{ display: 'flex', justifyContent: 'center', p: 10 }}>
-                <CircularProgress sx={{ color: '#00d4ff' }} />
+                <CircularProgress sx={{ color: COLORS.emerald }} />
               </Box>
             )}
 
@@ -214,41 +212,41 @@ const SimulationAccuracy = () => {
             {aggregateStats && (
               <Grid container spacing={3} sx={{ mb: 3 }}>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                    <Typography variant="overline" color="text.secondary">
+                  <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                    <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                       Average Accuracy
                     </Typography>
-                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: '#00e676' }}>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: COLORS.emerald }}>
                       {aggregateStats.avgAccuracy.toFixed(1)}%
                     </Typography>
                   </Paper>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                    <Typography variant="overline" color="text.secondary">
+                  <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                    <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                       Best Month
                     </Typography>
-                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: '#00d4ff' }}>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: COLORS.indigo }}>
                       {aggregateStats.maxAccuracy.toFixed(1)}%
                     </Typography>
                   </Paper>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                    <Typography variant="overline" color="text.secondary">
+                  <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                    <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                       Worst Month
                     </Typography>
-                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: '#ff1744' }}>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: COLORS.crimson }}>
                       {aggregateStats.minAccuracy.toFixed(1)}%
                     </Typography>
                   </Paper>
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                    <Typography variant="overline" color="text.secondary">
+                  <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                    <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                       Total Predictions
                     </Typography>
-                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold' }}>
+                    <Typography variant="h3" sx={{ my: 1, fontWeight: 'bold', color: COLORS.textPrimary }}>
                       {aggregateStats.totalPredictions}
                     </Typography>
                   </Paper>
@@ -258,39 +256,39 @@ const SimulationAccuracy = () => {
 
             {/* Accuracy Chart */}
             {accuracyData && Array.isArray(accuracyData) && (
-              <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
-                <Typography variant="h6" sx={{ mb: 2 }}>
+              <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}` }}>
+                <Typography variant="h6" sx={{ mb: 2, color: COLORS.textPrimary }}>
                   Monthly Accuracy Trend
                 </Typography>
                 <ResponsiveContainer width="100%" height={400}>
                   <LineChart data={[...accuracyData].reverse()}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={COLORS.borderSubtle} vertical={false} />
                     <XAxis
                       dataKey="month"
-                      stroke="#666"
-                      tick={{ fill: '#666', fontSize: 12 }}
+                      stroke={COLORS.textMuted}
+                      tick={{ fill: COLORS.textMuted, fontSize: 12 }}
                       angle={-45}
                       textAnchor="end"
                       height={80}
                     />
                     <YAxis
-                      stroke="#666"
-                      tick={{ fill: '#666' }}
+                      stroke={COLORS.textMuted}
+                      tick={{ fill: COLORS.textMuted }}
                       domain={[0, 100]}
                       tickFormatter={(val) => `${val}%`}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
-                      labelStyle={{ color: '#888' }}
+                      contentStyle={{ backgroundColor: COLORS.bgElevated, border: `1px solid ${COLORS.borderSubtle}`, color: COLORS.textPrimary }}
+                      labelStyle={{ color: COLORS.textSecondary }}
                       formatter={(value) => [`${value.toFixed(1)}%`, 'Accuracy']}
                     />
-                    <Legend />
+                    <Legend wrapperStyle={{ color: COLORS.textSecondary }} />
                     <Line
                       type="monotone"
                       dataKey="accuracy"
-                      stroke="#00e676"
+                      stroke={COLORS.emerald}
                       strokeWidth={3}
-                      dot={{ fill: '#00e676', r: 4 }}
+                      dot={{ fill: COLORS.emerald, r: 4 }}
                       activeDot={{ r: 6 }}
                       name="Accuracy %"
                     />
@@ -307,11 +305,11 @@ const SimulationAccuracy = () => {
             {/* Loading */}
             {backtestLoading && (
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 10 }}>
-                <CircularProgress sx={{ color: '#00d4ff', mb: 2 }} size={60} />
-                <Typography variant="body1" color="text.secondary">
+                <CircularProgress sx={{ color: COLORS.emerald, mb: 2 }} size={60} />
+                <Typography variant="body1" sx={{ color: COLORS.textSecondary }}>
                   Running walk-forward backtest...
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
+                <Typography variant="caption" sx={{ mt: 1, color: COLORS.textMuted }}>
                   This may take 30-60 seconds
                 </Typography>
               </Box>
@@ -334,53 +332,53 @@ const SimulationAccuracy = () => {
                 {/* Stats */}
                 <Grid container spacing={3} sx={{ mb: 3 }}>
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                      <Typography variant="overline" color="text.secondary">
+                    <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                      <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                         RMSE
                       </Typography>
-                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#00d4ff' }}>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: COLORS.indigo }}>
                         {backtestData.rmse?.toFixed(2) || 'N/A'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: COLORS.textMuted }}>
                         Root Mean Square Error
                       </Typography>
                     </Paper>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                      <Typography variant="overline" color="text.secondary">
+                    <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                      <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                         Directional Accuracy
                       </Typography>
-                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: '#00e676' }}>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: COLORS.emerald }}>
                         {backtestData.directional_accuracy?.toFixed(1) || 'N/A'}%
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: COLORS.textMuted }}>
                         Predicted direction correctly
                       </Typography>
                     </Paper>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                      <Typography variant="overline" color="text.secondary">
+                    <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                      <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                         MAE
                       </Typography>
-                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold' }}>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: COLORS.textPrimary }}>
                         {backtestData.mae?.toFixed(2) || 'N/A'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: COLORS.textMuted }}>
                         Mean Absolute Error
                       </Typography>
                     </Paper>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', textAlign: 'center' }}>
-                      <Typography variant="overline" color="text.secondary">
+                    <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, textAlign: 'center' }}>
+                      <Typography variant="overline" sx={{ color: COLORS.textSecondary }}>
                         Data Points
                       </Typography>
-                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold' }}>
+                      <Typography variant="h4" sx={{ my: 1, fontWeight: 'bold', color: COLORS.textPrimary }}>
                         {backtestData.data_points || 'N/A'}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{ color: COLORS.textMuted }}>
                         Predictions evaluated
                       </Typography>
                     </Paper>
@@ -389,30 +387,30 @@ const SimulationAccuracy = () => {
 
                 {/* The Big Chart: Predicted vs Actual */}
                 {backtestData.backtest_data && Array.isArray(backtestData.backtest_data) && (
-                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333', mb: 3 }}>
+                  <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}`, mb: 3 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                      <Typography variant="h6">
+                      <Typography variant="h6" sx={{ color: COLORS.textPrimary }}>
                         Model Predictions vs Market Reality ({backtestYear}-Present)
                       </Typography>
                       <Chip
                         label={`${backtestData.backtest_data.length} predictions`}
                         size="small"
-                        sx={{ bgcolor: '#1a1a1a', color: '#888' }}
+                        sx={{ bgcolor: COLORS.bgElevated, color: COLORS.textSecondary }}
                       />
                     </Box>
                     <ResponsiveContainer width="100%" height={500}>
                       <AreaChart data={backtestData.backtest_data}>
                         <defs>
                           <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#00d4ff" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="#00d4ff" stopOpacity={0} />
+                            <stop offset="5%" stopColor={COLORS.indigo} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={COLORS.indigo} stopOpacity={0} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.borderSubtle} vertical={false} />
                         <XAxis
                           dataKey="date"
-                          stroke="#666"
-                          tick={{ fill: '#666', fontSize: 11 }}
+                          stroke={COLORS.textMuted}
+                          tick={{ fill: COLORS.textMuted, fontSize: 11 }}
                           minTickGap={50}
                           tickFormatter={(value) => {
                             const date = new Date(value);
@@ -420,14 +418,14 @@ const SimulationAccuracy = () => {
                           }}
                         />
                         <YAxis
-                          stroke="#666"
-                          tick={{ fill: '#666' }}
+                          stroke={COLORS.textMuted}
+                          tick={{ fill: COLORS.textMuted }}
                           domain={['auto', 'auto']}
                           tickFormatter={(val) => `$${val.toFixed(0)}`}
                         />
                         <Tooltip
-                          contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
-                          labelStyle={{ color: '#888' }}
+                          contentStyle={{ backgroundColor: COLORS.bgElevated, border: `1px solid ${COLORS.borderSubtle}`, color: COLORS.textPrimary }}
+                          labelStyle={{ color: COLORS.textSecondary }}
                           formatter={(value, name) => [
                             `$${value.toFixed(2)}`,
                             name === 'actual' ? 'Market Reality' : 'Engine Prediction'
@@ -438,26 +436,26 @@ const SimulationAccuracy = () => {
                           verticalAlign="top"
                           align="right"
                           height={36}
-                          wrapperStyle={{ color: '#fff' }}
+                          wrapperStyle={{ color: COLORS.textSecondary }}
                         />
-                        
+
                         {/* Actual Price - The Truth */}
                         <Area
                           name="Market Reality (S&P 500)"
                           type="monotone"
                           dataKey="actual"
-                          stroke="#ffffff"
+                          stroke={COLORS.textPrimary}
                           strokeWidth={2}
                           fill="transparent"
                           dot={false}
                         />
-                        
+
                         {/* Predicted Price - Our Model */}
                         <Area
                           name="Engine Prediction"
                           type="monotone"
                           dataKey="predicted"
-                          stroke="#00d4ff"
+                          stroke={COLORS.indigo}
                           strokeWidth={2}
                           fillOpacity={1}
                           fill="url(#colorPredicted)"
@@ -466,11 +464,11 @@ const SimulationAccuracy = () => {
                       </AreaChart>
                     </ResponsiveContainer>
 
-                    <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        <strong>How to read this chart:</strong> The white line shows actual S&P 500 prices. 
-                        The cyan area shows what our model would have predicted at each point in history using 
-                        only data available at that time. Larger gaps indicate periods where the model struggled 
+                    <Box sx={{ mt: 2, p: 2, bgcolor: COLORS.bgElevated, borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ color: COLORS.textSecondary }}>
+                        <strong>How to read this chart:</strong> The white line shows actual S&P 500 prices.
+                        The cyan area shows what our model would have predicted at each point in history using
+                        only data available at that time. Larger gaps indicate periods where the model struggled
                         (often during major market crashes like 2008 and 2020).
                       </Typography>
                     </Box>
@@ -479,48 +477,48 @@ const SimulationAccuracy = () => {
 
                 {/* Error Over Time */}
                 {backtestData.backtest_data && Array.isArray(backtestData.backtest_data) && (
-                  <Paper sx={{ p: 3, bgcolor: '#111', border: '1px solid #333' }}>
-                    <Typography variant="h6" sx={{ mb: 2 }}>
+                  <Paper sx={{ p: 3, bgcolor: COLORS.bgCard, border: `1px solid ${COLORS.borderSubtle}` }}>
+                    <Typography variant="h6" sx={{ mb: 2, color: COLORS.textPrimary }}>
                       Prediction Error Over Time
                     </Typography>
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart 
+                      <LineChart
                         data={backtestData.backtest_data.map(d => ({
                           ...d,
                           error: Math.abs(d.predicted - d.actual)
                         }))}
                       >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" stroke={COLORS.borderSubtle} vertical={false} />
                         <XAxis
                           dataKey="date"
-                          stroke="#666"
-                          tick={{ fill: '#666', fontSize: 11 }}
+                          stroke={COLORS.textMuted}
+                          tick={{ fill: COLORS.textMuted, fontSize: 11 }}
                           minTickGap={50}
                           tickFormatter={(value) => new Date(value).getFullYear().toString()}
                         />
                         <YAxis
-                          stroke="#666"
-                          tick={{ fill: '#666' }}
+                          stroke={COLORS.textMuted}
+                          tick={{ fill: COLORS.textMuted }}
                           tickFormatter={(val) => `$${val.toFixed(0)}`}
                         />
                         <Tooltip
-                          contentStyle={{ backgroundColor: '#111', border: '1px solid #333', color: '#fff' }}
+                          contentStyle={{ backgroundColor: COLORS.bgElevated, border: `1px solid ${COLORS.borderSubtle}`, color: COLORS.textPrimary }}
                           formatter={(value) => [`$${value.toFixed(2)}`, 'Absolute Error']}
                           labelFormatter={(label) => new Date(label).toLocaleDateString()}
                         />
                         <Line
                           type="monotone"
                           dataKey="error"
-                          stroke="#ff1744"
+                          stroke={COLORS.crimson}
                           strokeWidth={2}
                           dot={false}
                           name="Prediction Error"
                         />
                       </LineChart>
                     </ResponsiveContainer>
-                    <Box sx={{ mt: 2, p: 2, bgcolor: '#1a1a1a', borderRadius: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        This shows how far off our predictions were. Spikes indicate major market events 
+                    <Box sx={{ mt: 2, p: 2, bgcolor: COLORS.bgElevated, borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ color: COLORS.textSecondary }}>
+                        This shows how far off our predictions were. Spikes indicate major market events
                         that the model failed to predict accurately (e.g., 2008 financial crisis, 2020 COVID crash).
                       </Typography>
                     </Box>
