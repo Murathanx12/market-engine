@@ -408,6 +408,9 @@ def _adjust_scenario_probabilities(
     elif regime_lower == 'bear':
         s['Recession']['probability'] *= 1.3
         s['AI Productivity Boom']['probability'] *= 0.7
+    elif regime_lower == 'neutral':
+        s['Base Case']['probability'] *= 1.2
+        s['Market Correction']['probability'] *= 1.05
     elif regime_lower in ('volatile', 'crisis'):
         s['Market Correction']['probability'] *= 1.3
         s['Geopolitical Crisis']['probability'] *= 1.2
@@ -601,9 +604,13 @@ def project_stock(
         lt_return = 0.08
 
     # Regime multiplier
-    regime_mult = {'bull': 1.0, 'bear': 0.6, 'volatile': 0.8, 'crisis': 0.5}.get(
-        regime.lower(), 1.0
-    )
+    regime_mult = {
+        'bull': 1.0,
+        'neutral': 0.9,
+        'bear': 0.6,
+        'volatile': 0.8,
+        'crisis': 0.5,
+    }.get(regime.lower(), 0.9)
 
     horizons = {'1M': 21, '6M': 126, '1Y': 252, '5Y': 1260}
     results = {}
