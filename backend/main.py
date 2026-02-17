@@ -11,9 +11,11 @@ Production-ready FastAPI backend with:
 import os
 import json
 import logging
+import asyncio
 import traceback
 import uuid
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import List, Optional
 
@@ -34,9 +36,7 @@ from database import (
 
 # Engine imports (your existing engine.py)
 from engine import (
-    run_multi_scenario_simulation, project_stock, estimate_crash_timeline,
-    run_backtest, analyze_sentiment, estimate_volatility,
-    analyze_sectors, SECTOR_MAP, INSTITUTIONAL_BENCHMARKS, CONFIG,
+    run_multi_scenario_simulation, SECTOR_MAP, INSTITUTIONAL_BENCHMARKS, CONFIG,
 )
 
 # Data fetcher imports (resilient to hot-reload partial states)
@@ -58,12 +58,13 @@ if run_daily_update is None:
             "run_daily_update is unavailable in data_fetchers; scheduler warm-up skipped."
         )
 
-# NEW: Import our fixed services
-from services.market_state_service import market_state_service
+# Service imports
 from services.fred_data_service import FREDDataService
 from services.monte_carlo_service import monte_carlo_service
 from services.net_liquidity_service import net_liquidity_service
 from services.backtest_service import backtest_service
+from services.unified_market_state import unified_market_state
+from services.stock_projection_service import stock_projection_service
 
 # ═══════════════════════════════════════════════════════════════
 # CONFIGURATION
@@ -75,23 +76,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Market Engine",
-    version="6.0.0",
-    description="AI-powered crash detection and probabilistic forecasting"
-)
-
-# CORS Configuration - Open for development
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # TODO: Restrict in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # Initialize FRED service
-FRED_API_KEY = os.getenv('FRED_API_KEY', '825bf1b26090df25fc3c20e36df6aa9f')
+FRED_API_KEY = os.getenv('FRED_API_KEY', '')
+if not FRED_API_KEY:
+    logger.warning("FRED_API_KEY not set — macro data will use fallback values")
 fred_service = FREDDataService(FRED_API_KEY)
 
 # ═══════════════════════════════════════════════════════════════
@@ -110,6 +98,69 @@ def _cache_get(key: str, ttl_seconds: int) -> dict | None:
 def _cache_set(key: str, value):
     """Store result in cache."""
     _endpoint_cache[key] = {'value': value, 'time': time.time()}
+
+
+# ═══════════════════════════════════════════════════════════════
+# LIFESPAN (startup + shutdown)
+# ═══════════════════════════════════════════════════════════════
+
+@asynccontextmanager
+async def lifespan(app):
+    """Application lifespan: startup and shutdown logic."""
+    # --- Startup ---
+    try:
+        init_db()
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        logger.error("Application may not function correctly")
+
+    async def _prewarm_caches():
+        await asyncio.sleep(2)
+        try:
+            state = unified_market_state.get_market_state()
+            logger.info(f"Pre-warmed market state: {state.get('regime', 'unknown')}")
+        except Exception as e:
+            logger.warning(f"Market state pre-warm failed: {e}")
+        try:
+            indicators = fred_service.get_macro_indicators()
+            _cache_set('macro_indicators', {
+                "status": "success",
+                "data": indicators,
+                "last_updated": datetime.now().isoformat()
+            })
+            logger.info("Pre-warmed macro indicators cache")
+        except Exception as e:
+            logger.warning(f"Macro indicator pre-warm failed: {e}")
+        logger.info("Market Engine is online — caches pre-warmed")
+
+    asyncio.create_task(_prewarm_caches())
+
+    yield  # Application runs here
+
+    # --- Shutdown ---
+    logger.info("Shutting down Market Engine")
+
+
+app = FastAPI(
+    title="Market Engine",
+    version="6.0.0",
+    description="AI-powered crash detection and probabilistic forecasting",
+    lifespan=lifespan,
+)
+
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ═══════════════════════════════════════════════════════════════
 # DEPENDENCY INJECTION
@@ -178,6 +229,12 @@ def _safe_fetch_price(ticker: str, fallback: float = None) -> float:
     
     logger.error(f"Could not fetch price for {ticker} - returning 0.0")
     return 0.0
+
+
+async def _safe_fetch_price_async(ticker: str, fallback: float = None) -> float:
+    """Non-blocking wrapper for _safe_fetch_price."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _safe_fetch_price, ticker, fallback)
 
 
 def get_regime_state(db: Session) -> dict:
@@ -380,8 +437,6 @@ def root():
 # NEW: UNIFIED MARKET STATUS (Fixes regime schizophrenia)
 # ═══════════════════════════════════════════════════════════════
 
-from services.unified_market_state import unified_market_state
-
 @app.get("/api/market-status")
 async def get_market_status_unified():
     """
@@ -462,8 +517,20 @@ async def get_crash_estimator_fixed(months: int = 60, db: Session = Depends(get_
 
         state = unified_market_state.get_market_state()
 
-        # Base probability from volatility
-        base_prob = min(0.15, state['volatility'] / 2.0)
+        # Multi-factor base probability
+        vix = float(state.get('vix', 18.0))
+        vol = float(state.get('volatility', 0.18))
+        regime = str(state.get('regime', 'VOLATILE')).lower()
+
+        regime_base = {
+            'bull': 0.06, 'neutral': 0.10, 'volatile': 0.14,
+            'bear': 0.22, 'crisis': 0.40,
+        }.get(regime, 0.10)
+
+        vix_adj = max(0, (vix - 20) / 80)
+        vol_adj = max(0, (vol - 0.15) / 2.0)
+
+        base_prob = min(0.50, regime_base + vix_adj + vol_adj)
 
         # Monthly probabilities with decay
         monthly_probs = []
@@ -562,14 +629,14 @@ async def get_crash_prediction(ticker: str, db: Session = Depends(get_db)):
     
     # Compute live prediction
     try:
-        current_price = _safe_fetch_price(ticker)
-        
+        current_price = await _safe_fetch_price_async(ticker)
+
         if current_price <= 0:
             raise HTTPException(
                 status_code=400,
                 detail=f"Cannot fetch price for {ticker}. Please verify ticker symbol."
             )
-        
+
         state = get_regime_state(db)
         
         # Run Monte Carlo simulation
@@ -663,8 +730,6 @@ async def get_crash_prediction(ticker: str, db: Session = Depends(get_db)):
 # STOCK TRACKER
 # ═══════════════════════════════════════════════════════════════
 
-from services.stock_projection_service import stock_projection_service
-
 @app.get("/api/stock/{ticker}")
 async def get_stock_projection_fixed(ticker: str):
     """
@@ -672,7 +737,10 @@ async def get_stock_projection_fixed(ticker: str):
     No more identical percentages!
     """
     try:
-        result = stock_projection_service.project_ticker(ticker)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, stock_projection_service.project_ticker, ticker
+        )
         
         if result['status'] == 'error':
             return {
@@ -757,7 +825,7 @@ async def get_sp500_projection(years: int = 5, db: Session = Depends(get_db)):
             logger.info("Returning cached %s", cache_key)
             return cached
 
-        current_level = _safe_fetch_price('SPY', fallback=605.0)
+        current_level = await _safe_fetch_price_async('SPY', fallback=605.0)
         state = get_regime_state(db)
 
         result = run_multi_scenario_simulation(
@@ -816,26 +884,18 @@ async def get_portfolio(db: Session = Depends(get_db)):
         total_cost = 0
         
         for h in holdings:
-            # Fetch current price
-            current = _safe_fetch_price(h.ticker, fallback=h.purchase_price)
-            
-            # Update database with latest price
-            if current > 0 and current != h.current_price:
-                h.current_price = current
-            elif h.current_price and h.current_price > 0:
-                current = h.current_price
-            else:
-                current = h.purchase_price
-            
+            # Use last known price (read-only — no live fetch on GET)
+            current = h.current_price if (h.current_price and h.current_price > 0) else h.purchase_price
+
             # Calculate metrics
             cost_basis = h.shares * h.purchase_price
             market_value = h.shares * current
             gain_loss = market_value - cost_basis
             gain_loss_pct = (gain_loss / cost_basis * 100) if cost_basis > 0 else 0
-            
+
             total_value += market_value
             total_cost += cost_basis
-            
+
             results.append({
                 "id": h.id,
                 "ticker": h.ticker,
@@ -851,14 +911,7 @@ async def get_portfolio(db: Session = Depends(get_db)):
                 "sector": h.sector or SECTOR_MAP.get(h.ticker, 'Other'),
                 "notes": h.notes,
             })
-        
-        # Save updated prices
-        try:
-            db.commit()
-        except Exception as e:
-            logger.warning(f"Could not update portfolio prices: {e}")
-            db.rollback()
-        
+
         total_gain = total_value - total_cost
         
         logger.info(f"Returning portfolio with {len(results)} holdings")
@@ -891,7 +944,7 @@ async def add_to_portfolio(req: PortfolioAddRequest, db: Session = Depends(get_d
         # Get purchase price if not provided
         purchase_price = req.purchase_price
         if purchase_price is None:
-            purchase_price = _safe_fetch_price(ticker)
+            purchase_price = await _safe_fetch_price_async(ticker)
             if purchase_price <= 0:
                 raise HTTPException(
                     status_code=400,
@@ -939,6 +992,42 @@ async def add_to_portfolio(req: PortfolioAddRequest, db: Session = Depends(get_d
             status_code=500,
             detail=f"Error adding to portfolio: {str(e)}"
         )
+
+
+@app.post("/api/portfolio/refresh-prices")
+async def refresh_portfolio_prices(db: Session = Depends(get_db)):
+    """Refresh all portfolio holding prices from market data."""
+    try:
+        holdings = db.query(PortfolioHolding).all()
+        if not holdings:
+            return {"status": "success", "updated": 0, "message": "Portfolio is empty"}
+
+        updated_count = 0
+        for h in holdings:
+            new_price = await _safe_fetch_price_async(h.ticker, fallback=h.purchase_price)
+            if new_price > 0 and new_price != h.current_price:
+                h.current_price = new_price
+                updated_count += 1
+
+        try:
+            db.commit()
+        except Exception as e:
+            logger.warning(f"Could not save refreshed portfolio prices: {e}")
+            db.rollback()
+            raise HTTPException(status_code=500, detail="Failed to save updated prices")
+
+        return {
+            "status": "success",
+            "updated": updated_count,
+            "total": len(holdings),
+            "message": f"Refreshed prices for {updated_count}/{len(holdings)} holdings",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error refreshing portfolio prices: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error refreshing prices: {str(e)}")
 
 
 @app.delete("/api/portfolio/{holding_id}")
@@ -1099,6 +1188,11 @@ def get_sector_rotation(db: Session = Depends(get_db)):
                 'sell': ['Utilities (XLU)', 'Consumer Staples (XLP)'],
                 'reasoning': 'Bull market favors growth and cyclical sectors.',
             },
+            'neutral': {
+                'buy': ['S&P 500 Index (SPY)', 'Dividend Growth (DGRO)', 'Quality Factor (QUAL)'],
+                'sell': ['High Beta (SPHB)', 'Speculative Growth'],
+                'reasoning': 'Neutral regime: balanced exposure, tilt toward quality.',
+            },
             'bear': {
                 'buy': ['Utilities (XLU)', 'Consumer Staples (XLP)', 'Healthcare (XLV)'],
                 'sell': ['Technology (XLK)', 'Consumer Discretionary (XLY)', 'Financials (XLF)'],
@@ -1115,8 +1209,8 @@ def get_sector_rotation(db: Session = Depends(get_db)):
                 'reasoning': 'Crisis mode: Preserve capital.',
             },
         }
-        
-        s = strategies.get(regime, strategies['bull'])
+
+        s = strategies.get(regime, strategies['neutral'])
         
         return {
             'regime': regime,
@@ -1141,45 +1235,43 @@ def get_sector_rotation(db: Session = Depends(get_db)):
 async def _get_real_top_movers(days: int) -> dict:
     """
     Fetch REAL top gainers/losers from actual market data.
-    Each stock gets its own calculation - NO REUSED VALUES.
-    
-    Args:
-        days: Number of days to look back for price changes
-    
-    Returns:
-        dict with 'gainers' and 'losers' lists
+    Uses concurrent fetching for performance.
     """
     sample_tickers = [
         'NVDA', 'AAPL', 'MSFT', 'TSLA', 'AMZN',
         'GOOG', 'META', 'AMD', 'NFLX', 'AVGO',
         'JPM', 'V', 'MA', 'DIS', 'BA'
     ]
-    
-    movers = []
-    
-    for ticker in sample_tickers:
+
+    def _fetch_single_mover(ticker: str) -> dict | None:
+        """Fetch price change for a single ticker (runs in thread pool)."""
         try:
             data = yf.Ticker(ticker).history(period=f'{max(days, 5)}d')
             if data is not None and len(data) > 1:
                 start_price = float(data['Close'].iloc[0])
                 end_price = float(data['Close'].iloc[-1])
+                if start_price <= 0:
+                    return None
                 change_pct = ((end_price - start_price) / start_price) * 100
-                
-                movers.append({
+                return {
                     'ticker': ticker,
                     'return_pct': round(change_pct, 2),
                     'current_price': round(end_price, 2)
-                })
+                }
         except Exception as e:
             logger.warning(f"Failed to fetch {ticker}: {e}")
-            continue
-    
-    # Sort by return percentage
+        return None
+
+    loop = asyncio.get_event_loop()
+    tasks = [loop.run_in_executor(None, _fetch_single_mover, t) for t in sample_tickers]
+    results = await asyncio.gather(*tasks)
+
+    movers = [r for r in results if r is not None]
     movers.sort(key=lambda x: x['return_pct'], reverse=True)
-    
+
     return {
-        'gainers': movers[:5],  # Top 5
-        'losers': movers[-5:]   # Bottom 5
+        'gainers': movers[:5],
+        'losers': movers[-5:]
     }
 
 # ═══════════════════════════════════════════════════════════════
@@ -1256,23 +1348,70 @@ def run_scenario_analysis_with_baseline(ticker: str, scenario: str = "baseline")
     """
     try:
         scenarios = {
-            "baseline": {  # NEW
+            "baseline": {
                 "probability": 0.50,
-                "market_impact": 0.08,  # Normal 8% annual return
+                "market_impact": 0.08,
                 "duration_days": 365,
-                "description": "Normal market conditions (baseline)",
+                "description": "Normal market conditions — historical average returns",
                 "vol_mult": 1.0,
                 "crash_mult": 1.0,
+            },
+            "recession": {
+                "probability": 0.12,
+                "market_impact": -0.30,
+                "duration_days": 365,
+                "description": "Standard economic recession — GDP contraction for 2+ quarters",
+                "vol_mult": 1.8,
+                "crash_mult": 2.5,
+            },
+            "rate_hike": {
+                "probability": 0.20,
+                "market_impact": -0.15,
+                "duration_days": 180,
+                "description": "Aggressive Fed rate hike cycle — tightening financial conditions",
+                "vol_mult": 1.4,
+                "crash_mult": 1.8,
+            },
+            "ai_bubble_collapse": {
+                "probability": 0.14,
+                "market_impact": -0.35,
+                "duration_days": 270,
+                "description": "AI valuations prove unsustainable — tech sector selloff",
+                "vol_mult": 2.2,
+                "crash_mult": 3.0,
             },
             "taiwan_conflict": {
                 "probability": 0.15,
                 "market_impact": -0.25,
                 "duration_days": 180,
-                "description": "China invades Taiwan",
+                "description": "China-Taiwan conflict — supply chain shock, semiconductor shortage",
                 "vol_mult": 2.0,
                 "crash_mult": 3.0,
             },
-            # ... rest of scenarios
+            "soft_landing": {
+                "probability": 0.30,
+                "market_impact": 0.12,
+                "duration_days": 365,
+                "description": "Fed engineers soft landing — inflation tamed without recession",
+                "vol_mult": 0.8,
+                "crash_mult": 0.6,
+            },
+            "geopolitical_crisis": {
+                "probability": 0.11,
+                "market_impact": -0.20,
+                "duration_days": 120,
+                "description": "Major geopolitical event — energy shock, trade war escalation",
+                "vol_mult": 1.6,
+                "crash_mult": 2.0,
+            },
+            "bull_continuation": {
+                "probability": 0.28,
+                "market_impact": 0.18,
+                "duration_days": 365,
+                "description": "Bull market continues — AI productivity boom, strong earnings",
+                "vol_mult": 0.9,
+                "crash_mult": 0.5,
+            },
         }
         
         if scenario not in scenarios:
@@ -1540,54 +1679,6 @@ def trigger_data_update():
             status_code=500,
             detail=f"Update failed: {str(e)}"
         )
-
-
-# ═══════════════════════════════════════════════════════════════
-# STARTUP / SHUTDOWN
-# ═══════════════════════════════════════════════════════════════
-
-@app.on_event("startup")
-async def startup():
-    """Initialize database and pre-warm caches on startup."""
-    try:
-        init_db()
-        logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        logger.error("Application may not function correctly")
-        return
-
-    # Pre-warm expensive caches so first user request is fast
-    import asyncio
-    asyncio.create_task(_prewarm_caches())
-
-
-async def _prewarm_caches():
-    """Background task to pre-warm market state and macro caches."""
-    import asyncio
-    await asyncio.sleep(2)  # Let the server finish binding
-    try:
-        state = unified_market_state.get_market_state()
-        logger.info(f"Pre-warmed market state: {state.get('regime', 'unknown')}")
-    except Exception as e:
-        logger.warning(f"Market state pre-warm failed: {e}")
-    try:
-        indicators = fred_service.get_macro_indicators()
-        _cache_set('macro_indicators', {
-            "status": "success",
-            "data": indicators,
-            "last_updated": datetime.now().isoformat()
-        })
-        logger.info(f"Pre-warmed macro indicators cache")
-    except Exception as e:
-        logger.warning(f"Macro indicator pre-warm failed: {e}")
-    logger.info("Market Engine is online — caches pre-warmed")
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    """Cleanup on shutdown."""
-    logger.info("🛑 Shutting down Market Engine")
 
 
 # ═══════════════════════════════════════════════════════════════
