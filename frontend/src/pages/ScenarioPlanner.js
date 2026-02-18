@@ -239,7 +239,7 @@ const ScenarioPlanner = () => {
                   }}
                 >
                   {data.expected_return >= 0 ? '+' : ''}
-                  {(data.expected_return * 100).toFixed(1)}%
+                  {data.expected_return?.toFixed(1)}%
                 </Typography>
               </Paper>
             </Grid>

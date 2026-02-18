@@ -231,7 +231,7 @@ class FREDDataService:
                 'label': 'Yield Curve (10Y - 2Y)',
                 'date': yield_10y.index[-1].strftime('%Y-%m-%d'),
                 'interpretation': self._interpret_yield_curve(spread),
-                'inverted': spread < 0
+                'inverted': bool(spread < 0)
             }
             
         except Exception as e:

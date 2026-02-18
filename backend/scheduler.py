@@ -46,7 +46,7 @@ def precompute_projection_cache():
     try:
         state = unified_market_state.get_market_state()
 
-        current_level = 605.0
+        current_level = 6900.0  # S&P 500 index scale (^GSPC), not SPY ETF
         for years in (1, 5):
             result = run_multi_scenario_simulation(
                 current_level=current_level,
