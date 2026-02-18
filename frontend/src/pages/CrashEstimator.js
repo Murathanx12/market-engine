@@ -36,7 +36,7 @@ const CrashEstimator = () => {
 
     return data.monthly_probabilities.map((item) => ({
       month: item.month,
-      probability: item.probability * 100, // Convert to percentage
+      probability: item.probability, // Already in percentage from backend
     }));
   }, [data]);
 
